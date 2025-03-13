@@ -1,236 +1,235 @@
-#zelfde als vorige maar dan met zwarte balk met tekst er onder:
-
-import cv2 
+#main.py
+import cv2
 import numpy as np
 import time
 import cv2.aruco as aruco
 
-# Controleer OpenCV-versie
-print(f"OpenCV-versie: {cv2.__version__}")
+from config_1 import (
+    FONT, FONT_SCALE_SIDEBAR, FONT_SCALE_RANKING_BAR, THICKNESS, LINE_TYPE,
+    COLOR_GREEN, COLOR_BLUE, COLOR_WHITE, COLOR_RED,
+    LAP_COMPLETE_DURATION, COOLDOWN_TIME,
+    MARKER_REAL_WIDTH, FOCAL_LENGTH, INITIAL_SCALE_FACTOR, MIN_SCALE_FACTOR,
+    RANKING_BAR_CONFIG, PATH_POINTS, PATH_WIDTH,
+    FINISH_ZONE, CAMERA_INDEX, BLACK_BAR_WIDTH,
+    START_TEXT, START_TEXT_POSITION, START_TEXT_FONT_SCALE, START_TEXT_COLOR, START_TEXT_THICKNESS,
+    COUNTDOWN_FONT_SCALE, COUNTDOWN_COLOR, COUNTDOWN_THICKNESS, COUNTDOWN_OFFSET_X, COUNTDOWN_OFFSET_Y,
+    GO_TEXT, GO_TEXT_FONT_SCALE, GO_TEXT_COLOR, GO_TEXT_THICKNESS, GO_TEXT_OFFSET_X, GO_TEXT_OFFSET_Y
+)
+from car_1 import Car
+from race_manager_1 import RaceManager
+from utils_1 import overlay_image
+from image_utils_1 import load_image
+from path_utils_1 import expand_path
+from ranking_bar_1 import draw_ranking_bar
 
-# Open de camera
-cap = cv2.VideoCapture(0)
+def draw_text(frame, text, position, color, font_scale=1, thickness=2):
+    cv2.putText(frame, text, position, cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness, cv2.LINE_AA)
 
-# Laad afbeeldingen met transparantie
-def load_image(path, max_width, max_height):
-    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-    if img is None:
-        print(f"Afbeelding niet gevonden: {path}")
-        return None
-    h, w = img.shape[:2]
-    scale = min(max_width / w, max_height / h) if (w > max_width or h > max_height) else 1
-    return cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+def main():
+    # Controleer OpenCV-versie
+    print(f"OpenCV-versie: {cv2.__version__}")
 
-green_car = load_image('D:\\werk\\warrior events\\groene_auto.png', 640, 480)
-blue_car = load_image('D:\\werk\\warrior events\\blauwe_auto.png', 640, 480)
+    # Open de camera
+    cap = cv2.VideoCapture(CAMERA_INDEX)
 
-# Pad tekenen functie
-def expand_path(path_points, width=20):
-    expanded_points = []
-    for i in range(len(path_points) - 1):
-        p1, p2 = path_points[i], path_points[i + 1]
-        # Bereken de vector van p1 naar p2
-        vector = np.array(p2) - np.array(p1)
-        norm = np.linalg.norm(vector)
-        
-        if norm > 0:
-            unit_vector = vector / norm
-        else:
-            unit_vector = np.array([0, 0])
-        
-        # Draai de vector 90 graden om een perpendiculaire richting te krijgen
-        perpendicular = np.array([-unit_vector[1], unit_vector[0]])
-        
-        # Verschuif de punten langs de perpendiculaire richting om een breder pad te creëren
-        p1_left = tuple((p1 + perpendicular * width / 2).astype(int))
-        p1_right = tuple((p1 - perpendicular * width / 2).astype(int))
-        p2_left = tuple((p2 + perpendicular * width / 2).astype(int))
-        p2_right = tuple((p2 - perpendicular * width / 2).astype(int))
-        
-        expanded_points.append([p1_left, p2_left, p2_right, p1_right])
-    return expanded_points
+    # Laad de auto-afbeeldingen
+    green_car_image = load_image('D:\\werk\\warrior events\\groene_auto.png', 640, 480)
+    blue_car_image = load_image('D:\\werk\\warrior events\\blauwe_auto.png', 640, 480)
 
-#klassementbalk
-def draw_ranking_bar(frame, lap_counts, green_car, blue_car):
-    # Zet de hoogte van de klassementsbalk in de while loop
+    # Initialiseer auto's
+    cars = {
+        0: Car(marker_id=0, color=COLOR_BLUE, car_image=blue_car_image, lap_position=None, lap_complete_position=None),
+        1: Car(marker_id=1, color=COLOR_GREEN, car_image=green_car_image, lap_position=None, lap_complete_position=None)
+    }
 
-    # Maak een nieuw frame voor de klassementsbalk
-    frame_with_ranking = frame.copy()
-    
-    # Maak de klassementsbalk (een zwarte balk onderaan het scherm)
-    cv2.rectangle(frame_with_ranking, (0, frame.shape[0] - ranking_bar_height), 
-                  (frame.shape[1], frame.shape[0]), (0, 0, 0), -1)
-    
-    # Tekst definiëren
-    text_first = "Eerste plaats: "
-    text_second = "Tweede plaats: "
-    
-    # Bereken de breedte van de tekst
-    text_size_first = cv2.getTextSize(text_first, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
-    text_size_second = cv2.getTextSize(text_second, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+    # Initialiseer de RaceManager
+    race_manager = RaceManager()
 
-    # Bereken de x-positie om de tekst te centreren
-    x_first = (frame.shape[1] - text_size_first[0]) // 2
-    x_second = (frame.shape[1] - text_size_second[0]) // 2
-    
-    # Voeg de tekst toe in het midden van de onderste balk
-    cv2.putText(frame_with_ranking, text_first, (x_first, frame.shape[0] - 60), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(frame_with_ranking, text_second, (x_second, frame.shape[0] - 30), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
-    
-    return frame_with_ranking
+    # Definieer het ArUco-dictionary en de parameters voor detectie
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+    parameters = cv2.aruco.DetectorParameters()
 
-# Definieer het ArUco-dictionary en de parameters voor detectie
-aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-parameters = cv2.aruco.DetectorParameters()
+    # Maak het pad voor de baan (ovale vorm)
+    expanded_path = expand_path(PATH_POINTS, width=PATH_WIDTH)
 
-# Pad voor de baan (ovale vorm)
-path_points = [
-    (300, 100), (350, 50), (450, 50), (550, 125), (650, 100), (700, 100), (750, 200),  
-    (750, 300), (700, 400), (650, 400), (550, 350), (450, 350), (350, 300),
-    (275, 150), (300, 100)    
-]
+    # Start de hoofdloop
+    while True:
+        ret, frame = cap.read()
+        if not ret or frame is None:
+            print("Frame error, probeer opnieuw...")
+            continue
 
-# Maak het pad breder
-expanded_path = expand_path(path_points, width=5)
+        # Vergroot de breedte van het frame door zwarte randen toe te voegen
+        ranking_bar_height = RANKING_BAR_CONFIG['ranking_bar_height']
+        new_width = frame.shape[1] + 2 * BLACK_BAR_WIDTH
+        new_height = frame.shape[0] + ranking_bar_height
 
-# Definieer de finishlijn
-finish_zone = ((375, 0), (425, 100))
+        # Maak een nieuw frame met een zwarte achtergrond
+        new_frame = np.zeros((new_height, new_width, 3), dtype=np.uint8)
+        new_frame[0:frame.shape[0], BLACK_BAR_WIDTH:BLACK_BAR_WIDTH + frame.shape[1]] = frame
 
-# Variabelen voor ronde detectie
-cooldown_time = 2  # Cooldown tijd om meerdere ronde tellingen te voorkomen
-last_lap_time = 0  # Tijd van de laatste ronde detectie
-lap_text_duration = 2  # Duur om de "Lap Complete" tekst weer te geven
+        # Verkrijg de afmetingen van new_frame
+        frame_width = new_frame.shape[1]
+        frame_height = new_frame.shape[0]
 
-# Variabelen voor het bijhouden van ronden per auto
-lap_counts = {0: 1, 1: 1}  # Sla de lap tellingen per marker-id op
-last_lap_times = {0: 0, 1: 0}  # Sla de laatste tijd per marker-id op
-lap_text_start_times = {0: 0, 1: 0}  # Sla de tekststarttijd per auto op
+        # Bereken de posities dynamisch voor de auto-informatie
+        # Blauwe auto (rechterkant)
+        x_blauw_lap = frame_width - BLACK_BAR_WIDTH + 20
+        y_blauw_lap = 100
+        x_blauw_complete = x_blauw_lap
+        y_blauw_complete = y_blauw_lap + 50
 
-# Functie om afbeeldingen over te leggen
-def overlay_image(background, overlay, x, y, scale_factor=1.0):
-    if overlay is None:
-        return
-    h, w = overlay.shape[:2]
-    new_w, new_h = max(1, int(w * scale_factor)), max(1, int(h * scale_factor))
-    overlay_resized = cv2.resize(overlay, (new_w, new_h), interpolation=cv2.INTER_AREA)
-    
-    x = max(0, min(x - new_w // 2, background.shape[1] - new_w))
-    y = max(0, min(y - new_h // 2, background.shape[0] - new_h))
-    
-    if overlay_resized.shape[2] == 4:
-        alpha = overlay_resized[:, :, 3] / 255.0
-        for c in range(3):
-            background[y:y+new_h, x:x+new_w, c] = (1 - alpha) * background[y:y+new_h, x:x+new_w, c] + alpha * overlay_resized[:, :, c]
-    else:
-        background[y:y+new_h, x:x+new_w] = overlay_resized
+        # Groene auto (linkerkant)
+        x_groen_lap = 20
+        y_groen_lap = 100
+        x_groen_complete = x_groen_lap
+        y_groen_complete = y_groen_lap + 50
 
-# Camera instellingen
-focal_length = 800  
-marker_real_width = 0.1  
-initial_scale_factor = 0.2  
-min_scale_factor = 0.1  
+        # Werk auto-instanties bij met de nieuwe posities
+        cars[0].lap_position = (x_blauw_lap, y_blauw_lap)
+        cars[0].lap_complete_position = (x_blauw_complete, y_blauw_complete)
+        cars[1].lap_position = (x_groen_lap, y_groen_lap)
+        cars[1].lap_complete_position = (x_groen_complete, y_groen_complete)
 
-while True:
-    ret, frame = cap.read()
-    if not ret or frame is None:
-        print("Frame error, probeer opnieuw...")
-        continue
+        # Converteer het frame naar grijswaarden
+        gray = cv2.cvtColor(new_frame, cv2.COLOR_BGR2GRAY)
 
-    # Vergroot de breedte van het frame door zwarte randen toe te voegen
-    black_bar_width = 200  # Breedte van de zwarte balken aan de zijkant
-    ranking_bar_height = 200
-    new_width = frame.shape[1] + 2 * black_bar_width  # Voeg ruimte toe voor zowel links
-    new_height = frame.shape[0] + ranking_bar_height
-    
-    # Maak een nieuw frame met een zwarte achtergrond
-    new_frame = np.zeros((new_height, new_width, 3), dtype=np.uint8)
-    
-    # Plaats het originele frame in het midden van het nieuwe frame
-    new_frame[0:frame.shape[0], black_bar_width:black_bar_width + frame.shape[1]] = frame
+        # Detecteer ArUco-markers in het frame
+        corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
-    gray = cv2.cvtColor(new_frame, cv2.COLOR_BGR2GRAY)
-    corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
-    
-    # Pad tekenen
-    for points in expanded_path:
-        cv2.fillPoly(new_frame, [np.array(points)], (0, 0, 255))  # Rood pad
-    
-    if ids is not None:
-        cv2.aruco.drawDetectedMarkers(new_frame, corners, ids)
-        for i, marker_id in enumerate(ids.flatten()):
-            x_center = int(np.mean(corners[i][0][:, 0]))
-            y_center = int(np.mean(corners[i][0][:, 1]))
-            
-            width = np.linalg.norm(corners[i][0][0] - corners[i][0][1])
-            height = np.linalg.norm(corners[i][0][0] - corners[i][0][3])
-            marker_size = (width + height) / 2
-            distance = (marker_real_width * focal_length) / marker_size
-            
-            scale_factor = max(initial_scale_factor * (1 / distance), min_scale_factor)
-            
-            if marker_id == 1:
-                overlay_image(new_frame, green_car, x_center, y_center, scale_factor)
-            elif marker_id == 0:
-                overlay_image(new_frame, blue_car, x_center, y_center, scale_factor)
-            
-            # Controleer of de marker zich binnen de finishzone bevindt
-            if (finish_zone[0][0] <= x_center <= finish_zone[1][0]) and (finish_zone[0][1] <= y_center <= finish_zone[1][1]):
-                current_time = time.time()
-                if current_time - last_lap_times[marker_id] > cooldown_time:
-                    lap_counts[marker_id] += 1
-                    last_lap_times[marker_id] = current_time
-                    lap_text_start_times[marker_id] = current_time
+        # Teken de baan
+        for points in expanded_path:
+            cv2.fillPoly(new_frame, [np.array(points)], COLOR_RED)  # Teken het pad in rood
 
-    # Display "Lap Complete" en "Finished!" per auto
-    for marker_id in lap_counts:
-        # Tekst voor de groene auto
-        if marker_id == 1:
-            if time.time() - lap_text_start_times[marker_id] < lap_text_duration:
-                cv2.putText(new_frame, "Lap Complete", (35, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
-            
-            # Als de groene auto de finish bereikt
-            if lap_counts[marker_id] >= 4:
-                cv2.putText(new_frame, "Green car finished", (35, 250), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2, cv2.LINE_AA)
-            
-            # Lap Counter voor de groene auto
-            if lap_counts[marker_id] >= 4:
-                cv2.putText(new_frame, "Finished", (35, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+        # *** Wacht op race start ***
+        if not race_manager.race_started and race_manager.countdown_start_time is None:
+            cv2.putText(new_frame, START_TEXT, START_TEXT_POSITION,
+                        FONT, START_TEXT_FONT_SCALE, START_TEXT_COLOR, START_TEXT_THICKNESS, LINE_TYPE)
+            cv2.imshow("ArUco Auto Tracken met Ronde Detectie", new_frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key != 255:
+                print(f"Key pressed: {key}")
+                if key in [13, 10]:
+                    print("Start countdown initiated.")
+                    race_manager.start_countdown()
+                elif key == ord('q') or key == 27:
+                    break
+            continue
+
+        # *** Aftelling voordat de race begint ***
+        countdown_number = race_manager.update_countdown()
+        if countdown_number is not None:
+            print(f"Countdown number: {countdown_number}")
+            if countdown_number > 0:
+                countdown_position = (new_frame.shape[1] // 2 - COUNTDOWN_OFFSET_X,
+                                      new_frame.shape[0] // 2 + COUNTDOWN_OFFSET_Y)
+                cv2.putText(new_frame, str(countdown_number), countdown_position,
+                            FONT, COUNTDOWN_FONT_SCALE, COUNTDOWN_COLOR, COUNTDOWN_THICKNESS, LINE_TYPE)
             else:
-                cv2.putText(new_frame, f"Lap: {lap_counts[marker_id]}", (35, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+                go_position = (new_frame.shape[1] // 2 - GO_TEXT_OFFSET_X,
+                               new_frame.shape[0] // 2 + GO_TEXT_OFFSET_Y)
+                cv2.putText(new_frame, GO_TEXT, go_position,
+                            FONT, GO_TEXT_FONT_SCALE, GO_TEXT_COLOR, GO_TEXT_THICKNESS, LINE_TYPE)
+                print("GO!")
+                if not race_manager.race_started:
+                    race_manager.start_race()
+                for car in cars.values():
+                    car.last_lap_time = race_manager.race_start_time
+            cv2.imshow("ArUco Auto Tracken met Ronde Detectie", new_frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q') or key == 27:
+                break
+            continue
 
-        
-        # Tekst voor de blauwe auto
-        elif marker_id == 0:
-            if time.time() - lap_text_start_times[marker_id] < lap_text_duration:
-                cv2.putText(new_frame, "Lap Complete", (new_frame.shape[1] - 165, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2, cv2.LINE_AA)
-            
-            # Als de blauwe auto de finish bereikt
-            if lap_counts[marker_id] >= 4:
-                cv2.putText(new_frame, "Blue car finished", (new_frame.shape[1] - 165, 250), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2, cv2.LINE_AA)
-            
-            # Lap Counter voor de blauwe auto
-            if lap_counts[marker_id] >= 4:
-                cv2.putText(new_frame, "Finished", (new_frame.shape[1] - 165, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
+        # Verwerk de gedetecteerde ArUco-markers
+        if ids is not None:
+            cv2.aruco.drawDetectedMarkers(new_frame, corners, ids)
+            for i, marker_id in enumerate(ids.flatten()):
+                if marker_id in cars:
+                    car = cars[marker_id]
+                    x_center = int(np.mean(corners[i][0][:, 0]))
+                    y_center = int(np.mean(corners[i][0][:, 1]))
+                    width = np.linalg.norm(corners[i][0][0] - corners[i][0][1])
+                    height = np.linalg.norm(corners[i][0][0] - corners[i][0][3])
+                    marker_size = (width + height) / 2
+                    distance = (MARKER_REAL_WIDTH * FOCAL_LENGTH) / marker_size
+                    scale_factor = max(INITIAL_SCALE_FACTOR * (1 / distance), MIN_SCALE_FACTOR)
+                    car.update_position(x_center, y_center, scale_factor)
+                    overlay_image(new_frame, car.car_image, x_center, y_center, scale_factor)
+                    # Alleen finish-check uitvoeren als de auto nog niet gefinished is
+                    if (FINISH_ZONE[0][0] <= x_center <= FINISH_ZONE[1][0]) and \
+                       (FINISH_ZONE[0][1] <= y_center <= FINISH_ZONE[1][1]) and not car.finished:
+                        current_time = time.time()
+                        if current_time - car.last_lap_time > race_manager.cooldown_time:
+                            car.increment_lap(current_time)
+
+        current_time = time.time()
+        for car in cars.values():
+            color = car.color
+            lap_pos = car.lap_position
+            lap_complete_pos = car.lap_complete_position
+            lap_time_diff = current_time - car.lap_text_start_time
+            if lap_time_diff < LAP_COMPLETE_DURATION:
+                lap_complete_pos_adjusted = (lap_complete_pos[0], lap_complete_pos[1] + 150)
+                cv2.putText(new_frame, "Lap Complete", lap_complete_pos_adjusted,
+                            FONT, FONT_SCALE_SIDEBAR, color, THICKNESS, LINE_TYPE)
+                if car.lap_times:
+                    last_lap_time = car.lap_times[-1]
+                    if last_lap_time > 0:
+                        last_minutes, last_seconds = divmod(last_lap_time, 60)
+                        lap_time_text = f"{int(last_minutes)}m {last_seconds:.2f}s"
+                        lap_time_pos = (lap_complete_pos_adjusted[0], lap_complete_pos_adjusted[1] + 30)
+                        cv2.putText(new_frame, "Lap Time:", lap_time_pos, FONT, FONT_SCALE_SIDEBAR, color, THICKNESS, LINE_TYPE)
+                        lap_time_value_pos = (lap_time_pos[0], lap_time_pos[1] + 25)
+                        cv2.putText(new_frame, lap_time_text, lap_time_value_pos, FONT, FONT_SCALE_SIDEBAR, color, THICKNESS, LINE_TYPE)
+            if race_manager.race_start_time is not None:
+                total_race_time = car.get_total_race_time(race_manager.race_start_time, current_time)
+                total_minutes, total_seconds = divmod(total_race_time, 60)
+                total_time_label = "Total Time:"
+                total_time_value = f"{int(total_minutes)}m {total_seconds:.2f}s"
             else:
-                cv2.putText(new_frame, f"Lap: {lap_counts[marker_id]}", (new_frame.shape[1] - 165, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
+                total_time_label = "Total Time:"
+                total_time_value = "N/A"
+            best_lap_time = car.get_best_lap_time()
+            if best_lap_time is not None:
+                best_minutes, best_seconds = divmod(best_lap_time, 60)
+                best_lap_label = "Fastest Lap:"
+                best_lap_value = f"{int(best_minutes)}m {best_seconds:.2f}s"
+            else:
+                best_lap_label = "Fastest Lap:"
+                best_lap_value = "N/A"
+            if car.finished:
+                cv2.putText(new_frame, "Finished", lap_pos, FONT, FONT_SCALE_SIDEBAR, color, THICKNESS, LINE_TYPE)
+            else:
+                lap_text = f"Lap: {car.lap_count}"
+                cv2.putText(new_frame, lap_text, lap_pos, FONT, FONT_SCALE_SIDEBAR, color, THICKNESS, LINE_TYPE)
+            total_time_label_pos = (lap_pos[0], lap_pos[1] + 35)
+            total_time_value_pos = (lap_pos[0], total_time_label_pos[1] + 25)
+            best_lap_label_pos = (lap_pos[0], total_time_value_pos[1] + 35)
+            best_lap_value_pos = (lap_pos[0], best_lap_label_pos[1] + 25)
+            cv2.putText(new_frame, total_time_label, total_time_label_pos, FONT, FONT_SCALE_SIDEBAR, color, THICKNESS, LINE_TYPE)
+            cv2.putText(new_frame, total_time_value, total_time_value_pos, FONT, FONT_SCALE_SIDEBAR, color, THICKNESS, LINE_TYPE)
+            cv2.putText(new_frame, best_lap_label, best_lap_label_pos, FONT, FONT_SCALE_SIDEBAR, color, THICKNESS, LINE_TYPE)
+            cv2.putText(new_frame, best_lap_value, best_lap_value_pos, FONT, FONT_SCALE_SIDEBAR, color, THICKNESS, LINE_TYPE)
 
-    # Voeg de klassementsbalk toe
-    new_frame = draw_ranking_bar(new_frame, lap_counts, green_car, blue_car)
+        new_frame = draw_ranking_bar(new_frame, list(cars.values()), RANKING_BAR_CONFIG)
 
-    # Toon het frame
-    cv2.imshow("ArUco Car Tracking with Lap Detection", new_frame)
-    
-    key = cv2.waitKey(1) & 0xFF
-    if key == ord('q'):  # Verlaat het programma
-        break
-    elif key == ord('r'):  # Reset de lap tellingen
-        lap_counts = {0: 1, 1: 1}
-        last_lap_times = {0: 0, 1: 0}
-        lap_text_start_times = {0: 0, 1: 0}
-    elif key == 27:  # ESC afsluiten
-        break
+        if race_manager.race_started and (time.time() - race_manager.race_start_time < 1):
+            go_position = (new_frame.shape[1] // 2 - GO_TEXT_OFFSET_X, new_frame.shape[0] // 2 + GO_TEXT_OFFSET_Y)
+            cv2.putText(new_frame, GO_TEXT, go_position, FONT, GO_TEXT_FONT_SCALE, GO_TEXT_COLOR, GO_TEXT_THICKNESS, LINE_TYPE)
 
-cap.release()
-cv2.destroyAllWindows()
+        cv2.imshow("ArUco Auto Tracken met Ronde Detectie", new_frame)
+
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q') or key == 27:
+            break
+        elif key == ord('r'):
+            race_manager.reset_race()
+            for car in cars.values():
+                car.reset()
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    main()
