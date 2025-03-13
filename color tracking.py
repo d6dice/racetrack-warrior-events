@@ -1,6 +1,5 @@
-#tracking car including drawing and finish line
-
-import cv2
+2 laps and a finish
+ import cv2 
 import numpy as np
 import time
 
@@ -18,19 +17,24 @@ cv2.namedWindow('HSV Trackbars')
 # Create trackbars for adjusting HSV ranges
 cv2.createTrackbar('Lower H', 'HSV Trackbars', 26, 179, lambda x: None)
 cv2.createTrackbar('Lower S', 'HSV Trackbars', 1, 255, lambda x: None)
-cv2.createTrackbar('Lower V', 'HSV Trackbars', 128, 255, lambda x: None)
-cv2.createTrackbar('Upper H', 'HSV Trackbars', 69, 179, lambda x: None)
+cv2.createTrackbar('Lower V', 'HSV Trackbars', 88, 255, lambda x: None)
+cv2.createTrackbar('Upper H', 'HSV Trackbars', 155, 179, lambda x: None)
 cv2.createTrackbar('Upper S', 'HSV Trackbars', 255, 255, lambda x: None)
 cv2.createTrackbar('Upper V', 'HSV Trackbars', 255, 255, lambda x: None)
+
+# Create a polygon mask (adjust these points to define your tracking area)
+polygon_points = np.array([[100, 25], [200, 25], [300, 0], [575, 0], [575, 200], [650, 200], [650, 450], [100, 450], [100, 300], [50, 300], [50, 25],])
+mask_polygon = np.zeros((480, 640), dtype=np.uint8)
+cv2.fillPoly(mask_polygon, [polygon_points], 255)
 
 # Create a list to store previous car positions for drawing the path
 car_path = []
 
 # Predefine a more complex track path (an oval track example)
 path_points = [
-    (100, 100), (150, 50), (250, 50), (350, 150), (350, 150), (450, 100), (500, 100), (600, 200),  # Top half of the oval
-    (600, 300), (500, 400), (450, 400), (400, 300), (300, 300), (250, 300), (150, 400), (100, 400), (0, 300),   # Bottom half of the oval
-    (0, 150), (100, 100)  # Closing the loop to the start point (finish line)
+    (100, 100), (150, 50), (250, 50), (350, 125), (450, 100), (500, 100), (550, 200),  # Top half of the oval
+    (550, 300), (500, 400), (450, 400), (350, 350), (250, 350), (150, 300),   # Bottom half of the oval
+    (75, 150), (100, 100)  # Closing the loop to the start point (finish line)
 ]
 
 # Function to expand the path to make it wider
@@ -63,12 +67,16 @@ def expand_path(path_points, width=20):
     return expanded_points
 
 # Make the path wider
-expanded_path = expand_path(path_points, width=50)  # Set the desired width here
+expanded_path = expand_path(path_points, width=5)  # Set the desired width here
 
 # Variables to manage lap detection
 lap_completed = False
 lap_start_time = 0
 lap_count = 0  # To count how many times the lap is completed
+cooldown_time = 2  # Cooldown time to prevent multiple lap counts
+last_lap_time = 0  # To store the time of the last lap detection
+lap_text_start_time = 0
+lap_text_duration = 2  # Duration to display the "Lap Complete" text in seconds
 
 # Define the finish line region (x: 175 to 225, y: 0 to 100)
 finish_zone = ((175, 0), (225, 100))
@@ -78,13 +86,16 @@ while True:
     ret, frame = cap.read()
     if not ret:
         break
+
+    # Apply the polygon mask
+    frame = cv2.bitwise_and(frame, frame, mask=mask_polygon)
     
     # Draw a grid on the frame every 50 pixels
     height, width, _ = frame.shape
     for x in range(0, width, 50):
         cv2.line(frame, (x, 0), (x, height), (200, 200, 200), 1)
     for y in range(0, height, 50):
-        cv2.line(frame, (0, y), (width, y), (200, 200, 200), 1)    
+        cv2.line(frame, (0, y), (width, y), (200, 200, 200), 1)
 
     # Convert the frame to HSV color space
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -127,9 +138,10 @@ while True:
 
             # Check if the car is within the finish zone
             if (finish_zone[0][0] <= center[0] <= finish_zone[1][0]) and (finish_zone[0][1] <= center[1] <= finish_zone[1][1]):
-                if not lap_completed:
+                current_time = time.time()
+                if current_time - last_lap_time > cooldown_time:
                     lap_completed = True
-                    lap_start_time = time.time()
+                    last_lap_time = current_time
 
     # Draw the expanded (wider) path on the frame
     for points in expanded_path:
@@ -144,12 +156,12 @@ while True:
 
     # Display "Lap Complete" after the car crosses the finish zone
     if lap_completed:
-        if lap_count < 2:
-            cv2.putText(frame, "Lap Complete", (150, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
-        # If 3 seconds have passed, reset and update lap count
-        if time.time() - lap_start_time > 3:
-            lap_completed = False
-            lap_count += 1
+        lap_count += 1
+        lap_completed = False
+        lap_text_start_time = time.time()
+
+    if time.time() - lap_text_start_time < lap_text_duration and lap_count < 3:
+        cv2.putText(frame, "Lap Complete", (150, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
     # Display "Finished!" if 3 laps are completed
     if lap_count >= 3:
@@ -164,6 +176,6 @@ while True:
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# Release the video capture and close all windows
+# Release the video capture object and close all windows
 cap.release()
 cv2.destroyAllWindows()
