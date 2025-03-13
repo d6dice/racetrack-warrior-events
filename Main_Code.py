@@ -1,4 +1,5 @@
-#twee auto’s met aruco en afbeelding. Laps en finish worden geregistreerd, lapcounters staan naast het beeld. Reset counters met r. 
+#zelfde als vorige maar dan met zwarte balk met tekst er onder:
+
 import cv2 
 import numpy as np
 import time
@@ -48,6 +49,37 @@ def expand_path(path_points, width=20):
         
         expanded_points.append([p1_left, p2_left, p2_right, p1_right])
     return expanded_points
+
+#klassementbalk
+def draw_ranking_bar(frame, lap_counts, green_car, blue_car):
+    # Zet de hoogte van de klassementsbalk in de while loop
+
+    # Maak een nieuw frame voor de klassementsbalk
+    frame_with_ranking = frame.copy()
+    
+    # Maak de klassementsbalk (een zwarte balk onderaan het scherm)
+    cv2.rectangle(frame_with_ranking, (0, frame.shape[0] - ranking_bar_height), 
+                  (frame.shape[1], frame.shape[0]), (0, 0, 0), -1)
+    
+    # Tekst definiëren
+    text_first = "Eerste plaats: "
+    text_second = "Tweede plaats: "
+    
+    # Bereken de breedte van de tekst
+    text_size_first = cv2.getTextSize(text_first, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+    text_size_second = cv2.getTextSize(text_second, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+
+    # Bereken de x-positie om de tekst te centreren
+    x_first = (frame.shape[1] - text_size_first[0]) // 2
+    x_second = (frame.shape[1] - text_size_second[0]) // 2
+    
+    # Voeg de tekst toe in het midden van de onderste balk
+    cv2.putText(frame_with_ranking, text_first, (x_first, frame.shape[0] - 60), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(frame_with_ranking, text_second, (x_second, frame.shape[0] - 30), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    
+    return frame_with_ranking
 
 # Definieer het ArUco-dictionary en de parameters voor detectie
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
@@ -107,14 +139,16 @@ while True:
         continue
 
     # Vergroot de breedte van het frame door zwarte randen toe te voegen
-    new_width = frame.shape[1] + 400  # 400 pixels breder maken
-    new_height = frame.shape[0]
+    black_bar_width = 200  # Breedte van de zwarte balken aan de zijkant
+    ranking_bar_height = 200
+    new_width = frame.shape[1] + 2 * black_bar_width  # Voeg ruimte toe voor zowel links
+    new_height = frame.shape[0] + ranking_bar_height
     
     # Maak een nieuw frame met een zwarte achtergrond
     new_frame = np.zeros((new_height, new_width, 3), dtype=np.uint8)
     
     # Plaats het originele frame in het midden van het nieuwe frame
-    new_frame[:, 200:200+frame.shape[1]] = frame
+    new_frame[0:frame.shape[0], black_bar_width:black_bar_width + frame.shape[1]] = frame
 
     gray = cv2.cvtColor(new_frame, cv2.COLOR_BGR2GRAY)
     corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
@@ -181,6 +215,9 @@ while True:
                 cv2.putText(new_frame, "Finished", (new_frame.shape[1] - 165, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
             else:
                 cv2.putText(new_frame, f"Lap: {lap_counts[marker_id]}", (new_frame.shape[1] - 165, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
+
+    # Voeg de klassementsbalk toe
+    new_frame = draw_ranking_bar(new_frame, lap_counts, green_car, blue_car)
 
     # Toon het frame
     cv2.imshow("ArUco Car Tracking with Lap Detection", new_frame)
