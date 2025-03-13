@@ -1,5 +1,4 @@
-# image_utils_1.py
-
+# image_utils.py
 import cv2
 
 def load_image(path, width=None, height=None):

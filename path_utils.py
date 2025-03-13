@@ -1,4 +1,5 @@
-# path_utils.py
+#path_utils.py
+
 import numpy as np
 
 def expand_path(path_points, width):

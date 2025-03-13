@@ -1,26 +1,102 @@
-#main.py
 import cv2
 import numpy as np
 import time
 import cv2.aruco as aruco
 
-from config_1 import (
+from config import (
     FONT, FONT_SCALE_SIDEBAR, FONT_SCALE_RANKING_BAR, THICKNESS, LINE_TYPE,
     COLOR_GREEN, COLOR_BLUE, COLOR_WHITE, COLOR_RED,
-    LAP_COMPLETE_DURATION, COOLDOWN_TIME,
+    LAP_COMPLETE_DURATION, COOLDOWN_TIME, TOTAL_LAPS,
     MARKER_REAL_WIDTH, FOCAL_LENGTH, INITIAL_SCALE_FACTOR, MIN_SCALE_FACTOR,
     RANKING_BAR_CONFIG, PATH_POINTS, PATH_WIDTH,
-    FINISH_ZONE, CAMERA_INDEX, BLACK_BAR_WIDTH,
+    FINISH_ZONE, CAMERA_INDEX, BLACK_BAR_WIDTH, CAR_TEXT_POSITIONS,
     START_TEXT, START_TEXT_POSITION, START_TEXT_FONT_SCALE, START_TEXT_COLOR, START_TEXT_THICKNESS,
     COUNTDOWN_FONT_SCALE, COUNTDOWN_COLOR, COUNTDOWN_THICKNESS, COUNTDOWN_OFFSET_X, COUNTDOWN_OFFSET_Y,
     GO_TEXT, GO_TEXT_FONT_SCALE, GO_TEXT_COLOR, GO_TEXT_THICKNESS, GO_TEXT_OFFSET_X, GO_TEXT_OFFSET_Y
 )
-from car_1 import Car
-from race_manager_1 import RaceManager
-from utils_1 import overlay_image
-from image_utils_1 import load_image
-from path_utils_1 import expand_path
-from ranking_bar_1 import draw_ranking_bar
+
+from car import Car
+from race_manager import RaceManager
+from utils import overlay_image
+from image_utils import load_image
+from path_utils import expand_path
+from ranking_bar import draw_ranking_bar
+from tracking_utils import project_to_centerline
+
+def compute_cumulative_distances(path_points):
+    """
+    Bereken de cumulatieve afstanden langs het traject.
+    Args:
+        path_points (list of tuple): Een lijst met (x, y)-coördinaten (bijvoorbeeld PATH_POINTS).
+    Returns:
+        list: Een lijst van cumulatieve afstanden, beginnend met 0.0.
+    """
+    cum_distances = [0.0]
+    for i in range(1, len(path_points)):
+        p1 = np.array(path_points[i-1], dtype=float)
+        p2 = np.array(path_points[i], dtype=float)
+        distance = np.linalg.norm(p2 - p1)
+        cum_distances.append(cum_distances[-1] + distance)
+    return cum_distances
+
+def calculate_progress_distance(car, path_points):
+    """
+    Berekent de afgelegde afstand langs het traject voor een auto.
+    De functie projecteert de positie van de auto op elk segment van PATH_POINTS
+    en kiest het segment waarbij de loodrechte afstand minimaal is. De progress wordt
+    dan de cumulatieve afstand vanaf het startpunt tot het projectiepunt.
+    
+    Args:
+        car: Het Car-object (met attributen car.x en car.y).
+        path_points: De lijst van (x, y)-punten (bijv. PATH_POINTS).
+    Returns:
+        float: De afgelegde afstand (progress) vanaf het startpunt.
+    """
+    
+    if car.x is None or car.y is None:
+        return 0.0
+    # Gebruik de display-coördinaten: voeg de BLACK_BAR_WIDTH toe.
+    car_pos = np.array([car.x + BLACK_BAR_WIDTH, car.y], dtype=float)
+    cum_distances = compute_cumulative_distances(path_points)
+    best_progress = 0.0
+    min_perp = float('inf')
+    for i in range(len(path_points) - 1):
+        A = np.array(path_points[i], dtype=float)
+        B = np.array(path_points[i+1], dtype=float)
+        AB = B - A
+        if np.dot(AB, AB) == 0:
+            continue
+        t = np.dot(car_pos - A, AB) / np.dot(AB, AB)
+        t_clamped = np.clip(t, 0, 1)
+        P = A + t_clamped * AB
+        perp_distance = np.linalg.norm(car_pos - P)
+        if perp_distance < min_perp:
+            min_perp = perp_distance
+            segment_length = np.linalg.norm(AB)
+            progress = cum_distances[i] + t_clamped * segment_length
+            best_progress = progress
+    return best_progress
+
+def sort_cars_by_position(cars):
+    """
+    Sorteert de auto's op basis van hun afgeronde lappen en de afgelegde afstand (progress) langs het traject.
+    De progress wordt berekend als de werkelijke cumulatieve afstand en vervolgens herstart (wrapt)
+    via een modulo met de totale laplengte.
+    
+    Args:
+        cars (dict): Dictionary met Car-objecten.
+    Returns:
+        list: Een gesorteerde lijst van Car-objecten. Ook wordt elk Car-object voorzien van 'position'.
+    """
+    cum_dist = compute_cumulative_distances(PATH_POINTS)
+    total_distance = cum_dist[-1]
+    for car in cars.values():
+        raw_progress = calculate_progress_distance(car, PATH_POINTS)
+        car.progress = raw_progress % total_distance  # Wrap progress zodat bij finish het opnieuw begint.
+    sorted_cars = sorted(cars.values(), key=lambda car: (car.lap_count, car.progress), reverse=True)
+    for idx, car in enumerate(sorted_cars):
+        car.position = idx + 1
+    return sorted_cars
 
 def draw_text(frame, text, position, color, font_scale=1, thickness=2):
     
@@ -80,45 +156,26 @@ def update_car_positions(cars, frame_width, frame_height):
 
 def sort_cars_by_position(cars):
     """
-    Sorteert de auto's op basis van hun huidige lap en hun progressie binnen die lap.
-    - Eerst sorteren we op lap_count (auto met meer afgeronde rondes komt eerst).
-    - Binnen dezelfde lap sorteren we op progress (afgelegde afstand langs het parcours).
-    Bijgewerkte posities worden opgeslagen in elk Car-object.
-
+    Sorteert de auto's op basis van hun afgeronde lappen en de afgelegde trajectafstand.
+    
+    De progress wordt berekend als de cumulatieve afstand langs PATH_POINTS tot het punt waarop
+    de auto het dichtst is. Daarna worden de auto's gesorteerd op (lap_count, progress) (beide aflopend).
+    De positie in de race wordt bijgewerkt in elk Car-object.
+    
     Args:
         cars (dict): Dictionary met Car-objecten.
-
+    
     Returns:
         list: Een gesorteerde lijst van Car-objecten.
     """
-    from config import PATH_POINTS
-
-    def calculate_progress(car):
-        """Berekent hoe ver een auto gevorderd is langs het parcours."""
-        if car.x is None or car.y is None:
-            return 0
-        car_position = np.array([car.x, car.y])
-        closest_index = min(
-            enumerate(PATH_POINTS),
-            key=lambda item: np.linalg.norm(car_position - np.array(item[1]))
-        )[0]
-        return closest_index
-
-    # Werk progress voor elke auto bij
+    # Gebruik de globale PATH_POINTS (die je in config.py hebt staan)
     for car in cars.values():
-        car.progress = calculate_progress(car)
-
-    # Sorteer auto's op lap_count en progress
-    sorted_cars = sorted(
-        cars.values(),
-        key=lambda car: (car.lap_count, car.progress),
-        reverse=True
-    )
-
-    # Update de positie in elk Car-object
+        car.progress = calculate_progress_distance(car, PATH_POINTS)
+    
+    sorted_cars = sorted(cars.values(), key=lambda car: (car.lap_count, car.progress), reverse=True)
+    
     for idx, car in enumerate(sorted_cars):
         car.position = idx + 1
-
     return sorted_cars
 
 def draw_race_track(frame, expanded_path):
@@ -179,93 +236,100 @@ def process_detected_markers(new_frame, cars, parameters, aruco_dict, race_manag
 
 def update_and_draw_overlays(frame, cars, race_manager):
     """
-    Update de progress van elke auto (langs de centerline), update de car rankings en 
-    tekent vervolgens de auto-informatie overlays en de ranking bar.
+    Update de progress van elke auto (langs de centerline), berekent
+    de ranking en tekent vervolgens de auto-informatie overlays, 
+    inclusief de auto-afbeeldingen en de rangindicator, op basis van de display-coördinaten.
+    
+    Hierbij worden de coördinaten gebruikt die eerder in process_frame
+    als car.display_x en car.display_y zijn ingesteld, zodat de overlays niet gespiegeld worden.
     
     Returns:
-        frame: Het frame met toegevoegde overlays.
+        frame (numpy.ndarray): Het frame met toegevoegde overlays.
     """
-    # Update progress voor elke auto (hulp via project_to_centerline)
+    # Update progress voor elke auto (bv. via project_to_centerline)
     for car in cars.values():
         if car.x is not None and car.y is not None:
             progress = project_to_centerline((car.x, car.y), PATH_POINTS)
             car.progress = progress
-            # Debug: toon de progress-waarde (optioneel)
-            #cv2.putText(frame, f"P: {progress:.1f}", (car.x, car.y - 20),
-             #           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
-    
+            # Debugline uitgeschakeld: print progress niet op het scherm.
+            # cv2.putText(frame, f"P: {progress:.1f}", (car.x, car.y - 20),
+            #             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+
     # Sorteer de auto's op basis van lap en progress en update hun positie
     sorted_cars = sort_cars_by_position(cars)
-    
-    # Update auto informatie (zoals ronde tijden en ranking)
+
+    # Update overige auto-informatie overlays (zoals ronde tijden, totaal tijd, etc.)
     current_time = time.time()
     display_car_info(cars, frame, current_time, race_manager)
     
-    # Teken de ranking bar en geef het aangepaste frame terug
-    return draw_ranking_bar(frame, sorted_cars, RANKING_BAR_CONFIG)
+    # Teken de ranking bar
+    frame = draw_ranking_bar(frame, sorted_cars, RANKING_BAR_CONFIG)
+
+    # Als laatste, teken de auto-afbeeldingen en rangindicatoren met de display-coördinaten,
+    # zodat deze bovenop alle andere overlays komen.
+    for car in sorted_cars:
+        if hasattr(car, "display_x") and hasattr(car, "display_y"):
+            # Gebruik car.display_x en car.display_y voor de plaatsing van de auto-afbeelding
+            overlay_image(frame, car.car_image, car.display_x, car.display_y, car.scale_factor)
+            overlay_position_indicator(frame, car)
+    
+    return frame
 
 def process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_path):
     """
     Verwerkt één frame voor de race:
-      - Maakt een nieuw frame met extra ruimte voor de zwarte balken en ranking bar.
-      - Voert, indien de race gestart is, de marker-detectie en overlays uit.
-      - Als de race nog niet gestart is, worden alleen de zwarte balken zichtbaar (zonder overliggende teksten of auto-afbeeldingen).
-    
-    Args:
-        frame (numpy.ndarray): Het originele videobeeld.
-        race_manager (RaceManager): Het object dat de status van de race beheert.
-        cars (dict): Dictionary met Car-objecten.
-        parameters: ArUco detectie-parameters.
-        aruco_dict: Het ArUco-dictionary.
-        expanded_path (numpy.ndarray): Het traject (pad) als een array met punten.
-    
-    Returns:
-        new_frame (numpy.ndarray): Het uiteindelijke frame.
+      - Maakt een nieuw frame met extra ruimte voor zwarte balken en ranking bar.
+      - Voert, indien de race gestart is, de ArUco-detectie en overlay-trekkingen uit.
+      - Als de race nog niet gestart is, worden alleen de zwarte balken (en eventueel een countdown) getekend.
+      
+    Resultaat: De auto-afbeelding(en) komen als laatste laag getekend bovenop het pad.
     """
-    # Maak een kopie van het originele frame (zonder overlays) voor de basis
+    # 1. Kopieer het originele frame voor verwerking.
     base_frame = frame.copy()
+    frame_height, frame_width = base_frame.shape[:2]
     
-    # Bepaal de nieuwe afmetingen met extra ruimte voor zijbalken en de ranking bar.
-    ranking_bar_height = RANKING_BAR_CONFIG['ranking_bar_height']
-    new_width = frame.shape[1] + 2 * BLACK_BAR_WIDTH
-    new_height = frame.shape[0] + ranking_bar_height
-    new_frame = np.zeros((new_height, new_width, 3), dtype=np.uint8)
-    
-    # Plaats het originele beeld in het centrale gebied van new_frame
-    new_frame[0:frame.shape[0], BLACK_BAR_WIDTH:BLACK_BAR_WIDTH + frame.shape[1]] = base_frame
-    
-    # Pre-race fase: als de race nog niet gestart is,
-    # geef dan direct new_frame (met de zwarte balken) terug zonder verdere overlays.
-    if not race_manager.race_started:
-        # Optioneel: Als je wel een countdown wilt tonen, kun je de handle_countdown functie op new_frame aanroepen
-        handle_countdown(new_frame, race_manager, cars)    # Zorgt ervoor dat countdown in new_frame getekend wordt.
-        return new_frame
-    
-    # Wanneer de race gestart is, werken we verder:
-    
-    # Voer ArUco-detectie uit op een kopie van de oorspronkelijke frame (of op base_frame)
+    # Voer ArUco-detectie uit op base_frame (ongeflipte versie).
     gray = cv2.cvtColor(base_frame, cv2.COLOR_BGR2GRAY)
     corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
     if ids is not None and len(ids) > 0:
         process_markers(cars, corners, ids, base_frame, race_manager)
     
-    # Werk new_frame bij, zodat de updates in base_frame (bv. auto posities) worden meegenomen:
-    new_frame[0:frame.shape[0], BLACK_BAR_WIDTH:BLACK_BAR_WIDTH + frame.shape[1]] = base_frame
+    # 2. Bepaal de uiteindelijke canvas-afmetingen met extra balken.
+    ranking_bar_height = RANKING_BAR_CONFIG['ranking_bar_height']
+    composite_width = frame_width + 2 * BLACK_BAR_WIDTH
+    composite_height = frame_height + ranking_bar_height
+    new_frame = np.zeros((composite_height, composite_width, 3), dtype=np.uint8)
     
-    # Update de auto-positie-informatie t.a.v. de nieuwe frame-afmetingen
-    update_car_positions(cars, new_width, new_height)
+    # 3. Plaats het originele beeld (base_frame) in het centrale gebied van new_frame.
+    new_frame[0:frame_height, BLACK_BAR_WIDTH:BLACK_BAR_WIDTH+frame_width] = base_frame
     
-    # Teken het pad en de finish-zone
+    # 4. Indien de race nog niet gestart is, teken eventueel countdown en geef new_frame terug.
+    if not race_manager.race_started:
+        handle_countdown(new_frame, race_manager, cars)
+        return new_frame
+    
+    # 5. Werk new_frame bij met de updates uit base_frame (bijv. auto-posities).
+    new_frame[0:frame_height, BLACK_BAR_WIDTH:BLACK_BAR_WIDTH+frame_width] = base_frame
+    
+    # 6. Teken het pad en de finish-zone op new_frame.
     draw_race_track(new_frame, expanded_path)
     draw_finish_zone(new_frame)
     
-    # Voeg de overlays toe (zoals auto-informatie en ranking bar)
+    # 7. Update de auto-positie-informatie afhankelijk van de nieuwe afmetingen.
+    update_car_positions(cars, composite_width, composite_height)
+    
+    # 8. Pas de display-coördinaten voor de auto's toe zodat de overlays niet gespiegeld worden.
+    for car in cars.values():
+        if car.x is not None and car.y is not None:
+            car.display_x = BLACK_BAR_WIDTH + car.x
+            car.display_y = car.y
+    
+    # 9. Als laatste, teken alle overige overlays en met name de auto-afbeeldingen bovenop het pad.
     new_frame = update_and_draw_overlays(new_frame, cars, race_manager)
     
-    # Als de race net gestart is, toon "GO!" kort
+    # 10. Als de race net is gestart (minder dan 1 seconde), teken dan "GO!" op new_frame.
     if race_manager.race_started and (time.time() - race_manager.race_start_time < 1):
-        pos = (new_frame.shape[1] // 2 - GO_TEXT_OFFSET_X,
-               new_frame.shape[0] // 2 + GO_TEXT_OFFSET_Y)
+        pos = (BLACK_BAR_WIDTH + frame_width//2 - GO_TEXT_OFFSET_X, frame_height//2 + GO_TEXT_OFFSET_Y)
         draw_text(new_frame, GO_TEXT, pos, GO_TEXT_COLOR, GO_TEXT_FONT_SCALE, GO_TEXT_THICKNESS)
     
     return new_frame
@@ -321,7 +385,7 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
         
         # Update de positie en schaal van de auto
         car.update_position(x_center, y_center, scale_factor)
-        overlay_image(new_frame, car.car_image, x_center, y_center, scale_factor)
+        # overlay_image(new_frame, car.car_image, x_center, y_center, scale_factor)
             
 def overlay_position_indicator(frame, car):
     """
@@ -366,6 +430,15 @@ def overlay_position_indicator(frame, car):
     (text_width, text_height), _ = cv2.getTextSize(text, FONT, font_scale, 2)
     text_x = indicator_center[0] - text_width // 2
     text_y = indicator_center[1] + text_height // 2 
+    
+    # **Nieuwe toevoeging:** Teken de progress-waarde naast de indicator.
+    progress_text = f"P: {car.progress}"
+    # Stel bijvoorbeeld een offset in voor de progress tekst (bijvoorbeeld 20 pixels naar rechts en 0 pixels verticaal)
+    progress_offset_x = indicator_radius + 50  # 10 extra pixels naast de cirkel
+    progress_offset_y = 50
+    progress_position = (indicator_center[0] + progress_offset_x, indicator_center[1] + progress_offset_y)
+    print(f"Auto {car.marker_id}: progress = {car.progress}")
+    
 
     # Teken de positie als tekst over de cirkel
     cv2.putText(frame, text, (text_x, text_y), FONT, font_scale, (0, 0, 0), 2, LINE_TYPE)
