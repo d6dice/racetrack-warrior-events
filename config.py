@@ -18,6 +18,8 @@ COLOR_GREEN = (0, 255, 0)
 COLOR_BLUE = (255, 0, 0)
 COLOR_WHITE = (255, 255, 255)
 COLOR_RED = (0, 0, 255)
+COLOR_RANKING_BAR_BG = (50, 50, 50)
+COLOR_TRACK = (0, 0, 255)  # Voor het tekenen van de track (bijvoorbeeld een polyline)
 
 # ---------------------------------------------------------------------------
 # Race Gerelateerde Instellingen
@@ -33,6 +35,24 @@ MARKER_REAL_WIDTH = 0.08       # Werkelijke breedte van het marker (in meters, v
 FOCAL_LENGTH = 800             # Focale lengte (in pixels, voorbeeld)
 INITIAL_SCALE_FACTOR = 0.2
 MIN_SCALE_FACTOR = 0.2
+
+# ---------------------------------------------------------------------------
+# Afbeeldingslocaties en icon-instellingen
+# ---------------------------------------------------------------------------
+CAR_IMAGES = {
+    "blue_car": {
+        "path": r"D:\werk\warrior events\blauwe_auto.png",
+        "width": 640,
+        "height": 480
+    },
+    "green_car": {
+        "path": r"D:\werk\warrior events\groene_auto.png",
+        "width": 640,
+        "height": 480
+    }
+}
+
+ICON_SIZE = 80  # Breedte en hoogte van auto-afbeeldingen in de rankingbar
 
 # ---------------------------------------------------------------------------
 # Ranking Bar Configuratie
@@ -67,19 +87,40 @@ CAMERA_INDEX = 0  # Standaard webcam
 BLACK_BAR_WIDTH = 200  # Breedte van zijbalken in pixels
 
 # ---------------------------------------------------------------------------
-# Posities voor auto-informatie in de zijbalk
+# auto-informatie in de zijbalk
 # ---------------------------------------------------------------------------
 CAR_TEXT_POSITIONS = {
     "blue_car": {
-        "lap_position_offset": (20, 50),
-        "lap_complete_position_offset": (20, 225)
+        "lap_position_offset": (-40, 50),
+        "lap_complete_position_offset": (-50, 225)
     },
     "green_car": {
-        "lap_position_offset": (175, 50),
-        "lap_complete_position_offset": (175, 225)
+        "lap_position_offset": (-175, 50),
+        "lap_complete_position_offset": (-175, 225)
     }
 }
 
+SIDEBAR_TEXT_COLORS = {
+    "blue_car": (255, 0, 0),  # blauwe tekst (BGR-formaat)
+    "green_car": (0, 255, 0)  # Groene tekst (BGR-formaat)
+}
+
+# ---------------------------------------------------------------------------
+# position indicators
+# ---------------------------------------------------------------------------
+POSITION_INDICATOR_CONFIG = {
+    "radius_factor": 50,           # Basisstraal voor de indicator (wordt vermenigvuldigd met de schaalfactor van de auto)
+    "offset": (-30, -150),           # (x, y)-offset voor de indicator ten opzichte van de auto’s positie
+    "text_scale": 2.0,             # Basistekstschaling (wordt vermenigvuldigd met de auto schaalfactor)
+    "text_color": (0, 0, 0),         # Textkleur (BGR)
+    "line_thickness": 2,           # Dikte van de getekende tekst
+    "colors": {                    # Definieer de kleur per positie (rang)
+         1: (0, 215, 255),         # Goud voor positie 1
+         2: (192, 192, 192),         # Zilver voor positie 2
+         3: (205, 127, 50),         # Brons voor positie 3
+         "default": (255, 255, 255)  # Wit als fallback (voor positie 4 en verder)
+    }
+}
 # ---------------------------------------------------------------------------
 # Startscherm en Countdown Instellingen
 # ---------------------------------------------------------------------------
