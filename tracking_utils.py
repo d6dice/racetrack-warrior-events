@@ -14,7 +14,6 @@ def distance_between_points(p1, p2):
     """
     return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
-
 def project_point_to_segment(point, seg_start, seg_end):
     """
     Projecteer een gegeven punt op een lijnsegment en retourneer:
@@ -114,3 +113,18 @@ def project_to_centerline(point, centerline):
         total_length += distance_between_points(seg_start, seg_end)
         
     return best_progress
+
+def process_detected_markers(new_frame, cars, parameters, aruco_dict, race_manager):
+    """
+    Detecteert ArUco-markers in new_frame en verwerkt ze.
+    """
+    gray = cv2.cvtColor(new_frame, cv2.COLOR_BGR2GRAY)
+    corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+
+    # Debug: Bekijk de gedetecteerde ArUco-corners en IDs
+    print(f"Detected ArUco corners: {corners}")
+    print(f"Detected ArUco IDs: {ids}")
+    
+    if ids is not None and len(ids) > 0:
+        process_markers(cars, corners, ids, new_frame, race_manager)
+

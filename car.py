@@ -1,10 +1,9 @@
+import cv2
+import numpy as np
+import time
+
 from config import CAR_IMAGES
 from image_utils import load_image
-import time
-
-
-# car.py
-import time
 
 class Car:
     def __init__(self, marker_id, color, car_image, lap_position, lap_complete_position, color_key):
@@ -41,6 +40,10 @@ class Car:
         self.lap_text_start_time = time.time()
         self.position = None
         self.final_position = None  # Nieuw attribuut: final finish ranking
+        
+        # Nieuwe attributen
+        self.username = None         # Wordt later ingesteld via het keuzemenu. Standaard None of een default waarde.
+        self.color_name = None       # Bijvoorbeeld "Blauw" of "Groen"        
         
     def update_position(self, x, y, scale_factor):
             self.x = x

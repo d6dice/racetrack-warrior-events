@@ -1,6 +1,11 @@
 # path_utils.py
-
+import cv2
 import numpy as np
+from tracking_utils import project_to_centerline
+
+def expand_path(path_points, width):
+    # Bereidt het traject (path) voor door de coördinaten in een numpy-array te zetten.
+    return np.array(path_points, dtype=np.int32)
 
 def expand_path(path_points, width):
     """
@@ -90,3 +95,57 @@ def expand_path(path_points, width):
     
     # Stap 9: Converteer naar int32 voor compatibiliteit met OpenCV.
     return expanded_polygon.astype(np.int32)
+
+def compute_cumulative_distances(path_points):
+    #Bereken de cumulatieve afstanden langs het traject.
+    cum_distances = [0.0]
+    for i in range(1, len(path_points)):
+        p1 = np.array(path_points[i - 1], dtype=float)
+        p2 = np.array(path_points[i], dtype=float)
+        distance = np.linalg.norm(p2 - p1)
+        cum_distances.append(cum_distances[-1] + distance)
+    return cum_distances
+
+def calculate_progress_distance(car, path_points):
+    """
+    Berekent de afgelegde afstand (raw progress) langs het traject voor een auto,
+    zijnde de cumulatieve afstand van het eerste punt tot aan het punt op het traject
+    dat het dichtst bij de auto ligt. Hier werken we in het display-systeem door BLACK_BAR_WIDTH
+    op te tellen bij de x-waarde.
+    """
+
+    # Debug: Controleer de huidige coördinaten van de auto
+    print(f"DEBUG: Auto {car.marker_id} positie voor progressie: x={car.x}, y={car.y}")
+    
+    # Bereken de progressie langs het pad
+    progress_distance = project_to_centerline((car.x, car.y), path_points)
+
+    # Debug: Controleer de berekende progressie
+    print(f"DEBUG: Auto {car.marker_id} berekende progressie: {progress_distance}")
+    
+    # Update de progressie van de auto
+    car.progress = progress_distance
+    
+    if car.x is None or car.y is None:
+        return 0.0
+    # Verander raw x naar display x: voeg de offset toe.
+    car_pos = np.array([car.x, car.y], dtype=float)
+    cum_distances = compute_cumulative_distances(path_points)
+    best_progress = 0.0
+    min_perp = float('inf')
+    for i in range(len(path_points) - 1):
+        A = np.array(path_points[i], dtype=float)
+        B = np.array(path_points[i+1], dtype=float)
+        AB = B - A
+        if np.dot(AB, AB) == 0:
+            continue
+        t = np.dot(car_pos - A, AB) / np.dot(AB, AB)
+        t_clamped = np.clip(t, 0, 1)
+        P = A + t_clamped * AB
+        perp_distance = np.linalg.norm(car_pos - P)
+        if perp_distance < min_perp:
+            min_perp = perp_distance
+            segment_length = np.linalg.norm(AB)
+            progress = cum_distances[i] + t_clamped * segment_length
+            best_progress = progress
+    return best_progress

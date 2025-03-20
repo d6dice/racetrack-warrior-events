@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 
 def draw_ranking_bar(frame, sorted_cars, config):
     """

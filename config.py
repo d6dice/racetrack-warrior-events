@@ -1,6 +1,6 @@
 #config.py
-
 import cv2
+import numpy as np
 
 # ---------------------------------------------------------------------------
 # Algemeen - Fonts en Text Styling
@@ -21,12 +21,19 @@ COLOR_RED = (0, 0, 255)
 COLOR_RANKING_BAR_BG = (50, 50, 50)
 COLOR_TRACK = (0, 0, 255)  # Voor het tekenen van de track (bijvoorbeeld een polyline)
 
+
+
 # ---------------------------------------------------------------------------
 # Race Gerelateerde Instellingen
 # ---------------------------------------------------------------------------
 LAP_COMPLETE_DURATION = 2.0    # Duur (in seconden) dat "Lap Complete" getoond wordt
 COOLDOWN_TIME = 1.0            # Minimale tijd tussen het registreren van opeenvolgende lappen
 TOTAL_LAPS = 3                 # Totaal aantal te rijden rondes
+
+DEFAULT_USERNAMES = {
+    "blue_car": "Marieke",
+    "green_car": "Alita"
+}
 
 # ---------------------------------------------------------------------------
 # ArUco Marker en Camera Configuratie
@@ -144,3 +151,25 @@ GO_TEXT_COLOR = COLOR_GREEN
 GO_TEXT_THICKNESS = 15
 GO_TEXT_OFFSET_X = 120  # Horizontale offset ten opzichte van het midden van het frame
 GO_TEXT_OFFSET_Y = 0   # Verticale Offset ten opzichte van het midden van het frame
+
+# ---------------------------------------------------------------------------
+# eindklassement instellingen
+# ---------------------------------------------------------------------------
+FINAL_OVERLAY_CONFIG = {
+    "overlay_color": (255, 255, 255),       # wit
+    "alpha": 0.6,                   # Transparantie (60%)
+    "width_ratio": 0.5,             # Overlay breedte = 50% van de framebreedte
+    "height_ratio": 0.7,            # Overlay hoogte = 70% van de framehoogte
+    "margin": 10,                   # Marges binnen de overlay, voor tekst
+    "title_text": "Final Ranking",
+    "title_font_scale": 1.2,
+    "title_thickness": 2,
+    "text_font": cv2.FONT_HERSHEY_SIMPLEX,
+    "text_font_scale": 1.0,
+    "text_thickness": 2,
+    "text_color": (0, 0, 0)     # zwart
+    
+}
+
+FINAL_OVERLAY_DELAY = 3.0  # Vertraag de finale overlay met 3 seconden
+
