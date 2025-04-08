@@ -77,17 +77,20 @@ def overlay_position_indicator(frame, car):
     
     return frame
 
+import cv2
+
 def draw_final_ranking_overlay(frame, sorted_cars):
     """
     Teken een semi-transparante overlay in het midden van het frame met het eindklassement.
 
     Args:
-        frame (numpy.ndarray): Het uiteindelijke    frame waarop de overlay getekend wordt.
+        frame (numpy.ndarray): Het uiteindelijke frame waarop de overlay getekend wordt.
         sorted_cars (list): Lijst met gesorteerde Car-objecten op basis van finishvolgorde.
         
     Returns:
         numpy.ndarray: Het frame met de finale ranking-overlay.
     """
+    # Haal de configuratieparameters op uit FINAL_OVERLAY_CONFIG.
     overlay_color = FINAL_OVERLAY_CONFIG["overlay_color"]
     alpha = FINAL_OVERLAY_CONFIG["alpha"]
     width_ratio = FINAL_OVERLAY_CONFIG["width_ratio"]
@@ -101,11 +104,11 @@ def draw_final_ranking_overlay(frame, sorted_cars):
     text_thickness = FINAL_OVERLAY_CONFIG["text_thickness"]
     text_color = FINAL_OVERLAY_CONFIG["text_color"]
 
-    # Maak een overlay kopie van het frame
+    # Maak een overlay-kopie van het frame
     overlay = frame.copy()
     frame_h, frame_w = frame.shape[:2]
     
-    # Bepaal de grootte van het overlay vierkant
+    # Bepaal de grootte van het overlay-venster
     overlay_w = int(frame_w * width_ratio)
     overlay_h = int(frame_h * height_ratio)
     
@@ -113,10 +116,12 @@ def draw_final_ranking_overlay(frame, sorted_cars):
     top_left_x = (frame_w - overlay_w) // 2
     top_left_y = (frame_h - overlay_h) // 2
     
-    # Teken een gevuld vierkant op de overlay (met de overlay kleur)
-    cv2.rectangle(overlay, (top_left_x, top_left_y), (top_left_x + overlay_w, top_left_y + overlay_h), overlay_color, -1)
+    # Teken een gevuld rechthoekig overlay
+    cv2.rectangle(overlay, (top_left_x, top_left_y),
+                  (top_left_x + overlay_w, top_left_y + overlay_h),
+                  overlay_color, -1)
     
-    # Combineer de overlay en het originele frame met een gegeven alpha (transparantie)
+    # Combineer de overlay en het originele frame met de gegeven alpha (transparantie)
     output = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
     
     # Teken de titel in het overlay
@@ -125,15 +130,15 @@ def draw_final_ranking_overlay(frame, sorted_cars):
     title_y = top_left_y + title_size[1] + margin
     cv2.putText(output, title_text, (title_x, title_y), text_font, title_font_scale, text_color, title_thickness, cv2.LINE_AA)
     
-    # Stel startpositie voor tekstregels binnen het overlay in
-    start_y = title_y + margin + 20  # Lichte marge onder de titel
-    line_height = 30  # Afstand tussen de tekstregels (pas dit aan indien nodig)
+    # Stel de startpositie voor de tekstregels binnen het overlay in
+    start_y = title_y + margin + 20  # marge onder de titel
+    line_height = 30  # hoogte tussen de tekstregels (pas aan indien nodig)
     text_x = top_left_x + margin
 
-    # Voor elke auto in de gesorteerde lijst, teken je een lijn met positie en username
+    # Voor elke auto in de gesorteerde lijst: teken een regel met ranking en username.
     for i, car in enumerate(sorted_cars):
-        # Gebruik de gebruikersnaam uit de config via de color_key. Als deze er niet is, gebruik dan een fallback:
-        username = DEFAULT_USERNAMES.get(car.color_key, f"Car {car.marker_id}")
+        # Haal de username direct uit het Car-object, gebruik fallback als deze niet is ingesteld.
+        username = car.username if car.username is not None else f"Car {car.marker_id}"
         rank_text = f"{i+1}. {username}"
         pos = (text_x, start_y + i * line_height)
         cv2.putText(output, rank_text, pos, text_font, text_font_scale, text_color, text_thickness, cv2.LINE_AA)
@@ -142,73 +147,84 @@ def draw_final_ranking_overlay(frame, sorted_cars):
 
 def update_and_draw_overlays(frame, cars, race_manager):
     """
-    Update de progress van elke auto (langs de centerline), berekent
-    de ranking en tekent vervolgens de auto-informatie overlays, 
-    inclusief de auto-afbeeldingen en de rangindicator, op basis van de display-coördinaten.
+    Update de progress van elke auto (langs de centerline), berekent de ranking en tekent de
+    auto-informatie overlays op basis van de display-coördinaten die eerder in process_frame 
+    (bijv. car.display_x en car.display_y) zijn ingesteld. 
     
-    Hierbij worden de coördinaten gebruikt die eerder in process_frame
-    als car.display_x en car.display_y zijn ingesteld, zodat de overlays niet gespiegeld worden.
+    Omdat alle auto‑informatie nu dynamisch in de Car-objecten zit (via CAR_CONFIG),
+    hoeft deze functie niet aangepast te worden als je een auto toevoegt of verwijdert.
+    
+    Deze functie voert de volgende stappen uit:
+      1. Sorteer de auto's volgens de gewenste progress (met sort_cars_by_position).
+      2. Haal de huidige tijd op en update de overlays (via display_car_info).
+      3. Teken de ranking bar op het frame (met draw_ranking_bar).
+      4. Voor iedere auto:
+         - Teken de auto-afbeelding op basis van de display-coördinaten.
+         - Teken tevens de position indicator.
     
     Returns:
-        frame (numpy.ndarray): Het frame met toegevoegde overlays.
+        frame (numpy.ndarray): Het originele frame met alle overlays toegevoegd.
     """
+    # Sorteer de auto's op basis van hun progress (deze functie is verondersteld al dynamisch de Car objecten te verwerken)
     sorted_cars = sort_cars_by_position(cars)
     current_time = time.time()
+    
+    # Werk de auto-informatie bij en teken deze overlay (zoals username, lap-tijd, enz.)
     display_car_info(cars, frame, current_time, race_manager)
+    
+    # Teken de ranking bar (deze functie gebruikt nu de dynamisch gesorteerde auto's en RANKING_BAR_CONFIG)
     frame = draw_ranking_bar(frame, sorted_cars, RANKING_BAR_CONFIG)
-
-    # teken de auto-afbeeldingen en rangindicatoren met de display-coördinaten,
+    
+    # Voor elke auto: teken de auto-afbeelding en de position indicator op basis van de display-coördinaten die eerder zijn vastgesteld.
     for car in sorted_cars:
         if hasattr(car, "display_x") and hasattr(car, "display_y"):
-            # Gebruik car.display_x en car.display_y voor de plaatsing van de auto-afbeelding
             overlay_image(frame, car.car_image, car.display_x, car.display_y, car.scale_factor)
             overlay_position_indicator(frame, car)
     
     return frame
 
+
 def display_car_info(cars, frame, current_time, race_manager):
     """
     Toont informatie over elke auto op het frame. Dit omvat:
-      - Ronde-informatie: de huidige lap of of de auto 'Finished' is
-      - Lap Complete melding en de lap-tijd (indien recent voltooid)
-      - Totale racetijd en de snelste lap
-      - De overlay van de positie-indicator op de auto
+      - De gebruikersnaam van de auto (boven de overlay-tekst).
+      - Huidige lap-info: of de auto "Finished" is, of welke lap actief is.
+      - Als de lap net voltooid is, wordt "Lap Complete" weergegeven met de lap-tijd.
+      - Totale racetijd en de snelste lap.
+      - Eventueel een positie-indicator.
+    
+    Alle overlay-posities en kleuren worden per auto ingesteld via de values uit de CAR_CONFIG.
     """
     for car in cars.values():
         if not car.lap_position or not car.lap_complete_position:
             print(f"Fout: lap_position of lap_complete_position ontbreekt voor auto met marker_id {car.marker_id}")
             continue
 
-        # Haal de kleur op basis van de color_key (en de DEFAULT_USERNAMES mocht je dat willen voor usernames)
-        color = SIDEBAR_TEXT_COLORS.get(car.color_key, (255, 255, 255))  # Standaardkleur wit
+        # Gebruik de kleur die is ingesteld via de initialisatie (bijv. via settings["sidebar_text_color"])
+        color = car.color  
+        username = car.username if car.username is not None else car.color_key.capitalize()
 
-        # Zet de username; gebruik de waarde die in de Car is opgeslagen of haal deze op uit DEFAULT_USERNAMES
-        username = car.username if car.username is not None else DEFAULT_USERNAMES.get(car.color_key, "Unknown")
-        
-        # Bepaal de basispositie voor de tekst in de zijbalk
-        pos = car.lap_position  # Bijvoorbeeld (x, y) positie in de zijbalk
+        pos = car.lap_position  # Basispositie voor overlay-teksten
 
-        # Teken de username bovenaan; pas de Y-offset aan (bijv. 30 pixels hoger)
-        username_pos = (pos[0], pos[1] - 30)  
+        # Teken de gebruikersnaam (30 pixels boven de basispositie)
+        username_pos = (pos[0], pos[1] - 30)
         draw_text(frame, username, username_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
-        
-        lap_complete_pos = car.lap_complete_position
+
         lap_time_diff = current_time - car.lap_text_start_time
 
-        # Als de lap net voltooid is, toon "Lap Complete" en de lap-tijd
+        # Als de lap net is voltooid, toon "Lap Complete" en de lap-tijd
         if lap_time_diff < LAP_COMPLETE_DURATION:
-            draw_text(frame, "Lap Complete", lap_complete_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
+            draw_text(frame, "Lap Complete", car.lap_complete_position, color, FONT_SCALE_SIDEBAR, THICKNESS)
             if car.lap_times:
                 last_lap_time = car.lap_times[-1]
                 if last_lap_time > 0:
                     minutes, seconds = divmod(last_lap_time, 60)
                     lap_time_str = f"{int(minutes)}m {seconds:.2f}s"
-                    label_pos = (lap_complete_pos[0], lap_complete_pos[1] + 30)
+                    label_pos = (car.lap_complete_position[0], car.lap_complete_position[1] + 30)
                     draw_text(frame, "Lap Time:", label_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
                     value_pos = (label_pos[0], label_pos[1] + 25)
                     draw_text(frame, lap_time_str, value_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
 
-        # Bereken de totale racetijd als de race gestart is.
         if race_manager.race_start_time:
             if car.finished and car.finish_time is not None:
                 total_race_time = car.finish_time - race_manager.race_start_time
@@ -219,7 +235,6 @@ def display_car_info(cars, frame, current_time, race_manager):
         else:
             total_time_str = "N/A"
 
-        # Bepaal de snelste lap
         best_lap_time = car.get_best_lap_time()
         if best_lap_time:
             best_minutes, best_seconds = divmod(best_lap_time, 60)
@@ -227,15 +242,12 @@ def display_car_info(cars, frame, current_time, race_manager):
         else:
             best_lap_str = "N/A"
 
-        # Toon de ronde-informatie: als de auto finished is, toon "Finished",
-        # anders toon de huidige lap (bijvoorbeeld "Lap 2")
         if car.finished:
             draw_text(frame, "Finished", pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
         else:
             lap_str = f"Lap {car.lap_count + 1}"
             draw_text(frame, lap_str, pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
 
-        # Positioneer de aanvullende informatie onder de basispositie
         total_label_pos = (pos[0], pos[1] + 35)
         total_value_pos = (pos[0], total_label_pos[1] + 25)
         best_label_pos = (pos[0], total_value_pos[1] + 35)
@@ -246,6 +258,4 @@ def display_car_info(cars, frame, current_time, race_manager):
         draw_text(frame, "Fastest Lap:", best_label_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
         draw_text(frame, best_lap_str, best_value_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
 
-        # Voeg de positie-indicator toe aan het frame.
         overlay_position_indicator(frame, car)
-      

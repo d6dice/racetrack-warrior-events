@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import time
 
-from config import CAR_IMAGES
+from config import CAR_CONFIG
 from image_utils import load_image
 
 class Car:
@@ -28,6 +28,8 @@ class Car:
         # Andere attributen in de Car-klasse
         self.x = None
         self.y = None
+        self.prev_x = None  # Voeg dit toe
+        self.prev_y = None  # Als je dit ook wilt tracken        
         self.display_x = None
         self.display_y = None
         self.scale_factor = 1.0
@@ -48,6 +50,8 @@ class Car:
     def update_position(self, x, y, scale_factor):
             self.x = x
             self.y = y
+            self.prev_x = self.x
+            self.prev_y = self.y            
             self.scale_factor = scale_factor    
 
     def get_total_race_time(self, race_start_time, current_time):

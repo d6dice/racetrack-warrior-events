@@ -65,43 +65,48 @@ def sort_cars_by_position(cars):
 
 def update_car_positions(cars, frame_width, frame_height):
     """
-    Bereken en update de posities voor auto-informatie op basis van het frame.
-
+    Bereken en update de overlay-posities voor ieder Car-object op basis van het frame.
+    
+    Deze versie maakt geen onderscheid tussen auto's; voor elke auto wordt dezelfde 
+    transformatie toegepast. De basis-offsets worden éénmalig vastgelegd (zoals geconfigureerd
+    in CAR_CONFIG). Vervolgens wordt er een globale offset (bijvoorbeeld BLACK_BAR_WIDTH) opgeteld.
+    
+    Zo bepaal je volledig via de config de uiteindelijke positie van de overlay.
+    
     Args:
-        cars (dict): Een dictionary met Car-objecten, waarbij de key de marker_id is.
-        frame_width (int): De breedte van het cameraframe.
-        frame_height (int): De hoogte van het cameraframe.
+        cars (dict): Dictionary met Car-objecten (key: marker_id).
+        frame_width (int): Breedte van het camerafeel.
+        frame_height (int): Hoogte van het camerafeel.
     """
-    for marker_id, car_key in enumerate(['blue_car', 'green_car']):
-        print(f"Processing marker_id: {marker_id}")
-        
-        # Controleer of de marker_id in cars bestaat
-        if marker_id not in cars:
-            print(f"Fout: marker_id {marker_id} niet gevonden in 'cars'. Sla over.")
-            continue
-        
-        # Haal de offsets uit de configuratie
-        offsets = CAR_TEXT_POSITIONS[car_key]
+    for car in cars.values():
+        # Zorg dat de originele overlay-posities éénmalig worden opgeslagen als basiswaarden.
+        if not hasattr(car, "base_lap_position"):
+            car.base_lap_position = car.lap_position  # (bijv. (-40, 100) of andere waarde zoals je dat wilt)
+        if not hasattr(car, "base_lap_complete_position"):
+            car.base_lap_complete_position = car.lap_complete_position
 
-        # Pas BLACK_BAR_WIDTH toe op basis van marker_id
-        if marker_id == 1:  # Groene auto: links in de zijbalk
-            x_lap = offsets['lap_position_offset'][0] + BLACK_BAR_WIDTH
-            y_lap = offsets['lap_position_offset'][1]
-            x_complete = offsets['lap_complete_position_offset'][0] + BLACK_BAR_WIDTH
-            y_complete = offsets['lap_complete_position_offset'][1]
-        else:  # Blauwe auto: rechts in de zijbalk
-            x_lap = frame_width - offsets['lap_position_offset'][0] - BLACK_BAR_WIDTH
-            y_lap = offsets['lap_position_offset'][1]
-            x_complete = frame_width - offsets['lap_complete_position_offset'][0] - BLACK_BAR_WIDTH
-            y_complete = offsets['lap_complete_position_offset'][1]
+        # Haal de basiswaarden op.
+        base_lap_x, base_lap_y = car.base_lap_position
+        base_complete_x, base_complete_y = car.base_lap_complete_position
 
-        # Debug: Controleer de aangepaste waarden
-        print(f"marker_id {marker_id}, x_lap: {x_lap}, y_lap: {y_lap}")
-        print(f"marker_id {marker_id}, x_complete: {x_complete}, y_complete: {y_complete}")
+        # Pas een uniforme transformatie toe: voeg een vaste offset toe.
+        # Als je wilt dat de uiteindelijke positie in de linker sidebar komt, regel je dit door in de config
+        # de juiste basiswaarde mee te geven (bijv. een negatief getal) en hier een vaste offset op te tellen.
+        new_lap_x = base_lap_x + BLACK_BAR_WIDTH
+        new_complete_x = base_complete_x + BLACK_BAR_WIDTH
+
+        # De y-waarden blijven onveranderd
+        new_lap_y = base_lap_y
+        new_complete_y = base_complete_y
+
+        # Update de overlay-posities van de auto
+        car.lap_position = (new_lap_x, new_lap_y)
+        car.lap_complete_position = (new_complete_x, new_complete_y)
         
-        # Update de posities in het respectieve Car-object
-        cars[marker_id].lap_position = (x_lap, y_lap)
-        cars[marker_id].lap_complete_position = (x_complete, y_complete)
+        # Debug: Print de berekende overlay-posities voor controle
+        print(f"Car {car.color_key}: overlay lap_position: ({new_lap_x}, {new_lap_y}), "
+              f"lap_complete_position: ({new_complete_x}, {new_complete_y})")
+
 
 def handle_countdown(frame, race_manager, cars):
     """
@@ -214,13 +219,17 @@ def process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_pa
 def process_markers(cars, corners, ids, new_frame, race_manager):
     """
     Verwerkt de gedetecteerde ArUco-markers:
-      - Tekent de markers in het frame.
-      - Berekent het centrum (x, y) van elke marker.
-      - Controleert of een marker binnen de finish-zone ligt en verhoogt zo nodig de lap.
-      - Berekent een schaalfactor op basis van de marker grootte en update de positie van de auto.
-      - Overlayt de auto-afbeelding op het frame.
+      - Teken de markers in het frame.
+      - Bereken het centrum (x, y) van elke marker.
+      - Controleer of een marker binnen de finish-zone ligt en verhoog,
+        indien de auto van links naar rechts beweegt, de lap.
+      - Bereken op basis van de marker-grootte de afstand en schaalfactor.
+      - Update de positie van de auto (inclusief de opslag van de vorige positie).
+      
+    De functie gaat er vanuit dat de Car-objecten alle nodige attributen bevatten,
+    zoals lap_position, lap_complete_position, sidebar_text_color, enzovoort, zoals ingesteld via CAR_CONFIG.
     """
-    # Teken alle gedetecteerde markers
+    # Teken alle gedetecteerde markers in het frame
     cv2.aruco.drawDetectedMarkers(new_frame, corners, ids)
     print(f"Detected IDs: {ids}")
     print(f"Detected Corners: {corners}")
@@ -228,11 +237,12 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
     # Bereken de finish-zone als een polygon
     finish_box = cv2.boxPoints(FINISH_ZONE)
     finish_box = np.int32(finish_box)
+    # Pas een correctie toe voor bijvoorbeeld een zijbalk (BLACK_BAR_WIDTH)
     finish_box[:, 0] -= BLACK_BAR_WIDTH
     print(f"Finish box (na BLACK_BAR_WIDTH-correctie): {finish_box}")
     
     for i, marker_id in enumerate(ids.flatten()):
-        # Controleer of deze marker overeenkomt met een auto
+        # Controleer of deze marker overeenkomt met een auto (als deze niet in de cars-dictionary staat, slaan we deze over)
         if marker_id not in cars:
             print(f"Marker ID {marker_id} komt niet overeen met een auto.")
             continue
@@ -243,24 +253,33 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
         x_center = int(np.mean(corners[i][0][:, 0]))
         y_center = int(np.mean(corners[i][0][:, 1]))
         
-        # Pas correctie toe om positie aan te passen
-        x_offset = 350 - 150  # Verwachte waarde - geregistreerde waarde
-        y_offset = 50 - 50    # Verwachte waarde - geregistreerde waarde
+        # Pas een positiecorrectie toe (indien nodig; pas dit aan op basis van je kalibratie)
+        # Hier voorbeeld: een vaste offset (verschil tussen verwachte en gemeten positie)
+        x_offset = 350 - 150  # Voorbeeld: 200 pixels correctie
+        y_offset = 50 - 50    # Geen verticale correctie in dit voorbeeld
         adjusted_x = x_center + x_offset
         adjusted_y = y_center + y_offset
         print(f"Marker ID {marker_id}: Aangepaste positie: x = {adjusted_x}, y = {adjusted_y}")
         
-        # Controleer of de marker binnen de finish-zone ligt
+        # Controleer of de marker binnen de finish-zone ligt.
+        # Alleen als de marker in de finish-zone ligt EN als de auto in de goede richting beweegt,
+        # verhogen we de lap.
         if cv2.pointPolygonTest(finish_box, (x_center, y_center), False) >= 0:
-            if not car.finished:
-                current_time = time.time()
-                if current_time - car.last_lap_time > race_manager.cooldown_time:
-                    print(f"Marker ID {marker_id} passeert de finish.")
-                    car.increment_lap(current_time, TOTAL_LAPS, race_manager)
-                else:
-                    print(f"Marker ID {marker_id} is in cooldown en kan de lap niet verhogen.")
+            # Controleer of de auto van links naar rechts beweegt; als er nog geen vorige positie is, doen we de lap-check wel.
+            if (car.prev_x is None) or (adjusted_x > car.prev_x):
+                if not car.finished:
+                    current_time = time.time()
+                    if current_time - car.last_lap_time > race_manager.cooldown_time:
+                        print(f"Marker ID {marker_id} passeert de finish.")
+                        car.increment_lap(current_time, TOTAL_LAPS, race_manager)
+                        # Reset de lap text timer voor de "Lap Complete" melding
+                        car.lap_text_start_time = current_time
+                    else:
+                        print(f"Marker ID {marker_id} is in cooldown en kan de lap niet verhogen.")
+            else:
+                print(f"Marker ID {marker_id}: Auto beweegt niet in de juiste richting voor een lap.")
         
-        # Bepaal de grootte van de marker om de afstand en de schaalfactor te berekenen
+        # Bepaal de grootte (marker_size) van de marker om de afstand en schaalfactor te berekenen.
         width = np.linalg.norm(corners[i][0][0] - corners[i][0][1])
         height = np.linalg.norm(corners[i][0][0] - corners[i][0][3])
         marker_size = (width + height) / 2
@@ -268,7 +287,13 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
         scale_factor = max(INITIAL_SCALE_FACTOR * (1 / distance), MIN_SCALE_FACTOR)
         print(f"Marker ID {marker_id}: width = {width}, height = {height}, marker_size = {marker_size}, distance = {distance}, scale_factor = {scale_factor}")
         
-        # Update de positie en schaal van de auto
+        # Update de positie van de auto.
+        # In de update_position functie moet je ervoor zorgen dat de huidige positie als vorige positie wordt opgeslagen.
         car.update_position(adjusted_x, adjusted_y, scale_factor)
         print(f"Auto {marker_id} bijgewerkte positie: x = {car.x}, y = {car.y}, scale_factor = {car.scale_factor}")
-        #overlay_image(new_frame, car.car_image, adjusted_x, adjusted_y, scale_factor)
+        
+        # Optioneel: je kunt hier de auto direct overlayen op het frame, maar dit wordt vaak
+        # later gedaan in de update_and_draw_overlays functie.
+        # overlay_image(new_frame, car.car_image, adjusted_x, adjusted_y, scale_factor)
+    
+    return new_frame

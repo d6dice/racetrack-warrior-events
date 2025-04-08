@@ -21,19 +21,12 @@ COLOR_RED = (0, 0, 255)
 COLOR_RANKING_BAR_BG = (50, 50, 50)
 COLOR_TRACK = (0, 0, 255)  # Voor het tekenen van de track (bijvoorbeeld een polyline)
 
-
-
 # ---------------------------------------------------------------------------
 # Race Gerelateerde Instellingen
 # ---------------------------------------------------------------------------
 LAP_COMPLETE_DURATION = 2.0    # Duur (in seconden) dat "Lap Complete" getoond wordt
 COOLDOWN_TIME = 1.0            # Minimale tijd tussen het registreren van opeenvolgende lappen
 TOTAL_LAPS = 3                 # Totaal aantal te rijden rondes
-
-DEFAULT_USERNAMES = {
-    "blue_car": "Marieke",
-    "green_car": "Alita"
-}
 
 # ---------------------------------------------------------------------------
 # ArUco Marker en Camera Configuratie
@@ -44,20 +37,55 @@ INITIAL_SCALE_FACTOR = 0.2
 MIN_SCALE_FACTOR = 0.2
 
 # ---------------------------------------------------------------------------
-# Afbeeldingslocaties en icon-instellingen
+# Auto Configuratie
+# Voeg hier eenvoudig nieuwe auto's toe of verwijder ze.
+# Alle relevante eigenschappen (zoals afbeelding, username, marker_id, positieoffsets, enz.) komen hier samen.
 # ---------------------------------------------------------------------------
-CAR_IMAGES = {
+CAR_CONFIG = {
     "blue_car": {
-        "path": r"D:\werk\warrior events\blauwe_auto.png",
+        "username": "Marieke",
+        "marker_id": 0,  # Zorg dat deze overeenkomt met de ArUco-marker
+        "image_path": r"D:\werk\warrior events\blauwe_auto.png",
         "width": 640,
-        "height": 480
+        "height": 480,
+        "lap_position_offset": (675, 75),
+        "lap_complete_position_offset": (675, 225),
+        "sidebar_text_color": (255, 0, 0)
     },
     "green_car": {
-        "path": r"D:\werk\warrior events\groene_auto.png",
+        "username": "Panda",
+        "marker_id": 1,
+        "image_path": r"D:\werk\warrior events\groene_auto.png",
         "width": 640,
-        "height": 480
-    }
+        "height": 480,
+        "lap_position_offset": (-175, 75),
+        "lap_complete_position_offset": (-175, 225),
+        "sidebar_text_color": (0, 255, 0)
+    },
+    "orange_car": {
+        "username": "Petan",
+        "marker_id": 2,
+        "image_path": r"D:\werk\warrior events\oranje_auto.png",
+        "width": 640,
+        "height": 480,
+        "lap_position_offset": (675, 300),  
+        "lap_complete_position_offset": (675, 450),
+        "sidebar_text_color": (0, 165, 255)
+    },
+    "red_car": {
+        "username": "Demi",
+        "marker_id": 3,
+        "image_path": r"D:\werk\warrior events\rode_auto.png",
+        "width": 640,
+        "height": 480,
+        "lap_position_offset": (-175, 300),  
+        "lap_complete_position_offset": (-175, 450),
+        "sidebar_text_color": (0, 0, 255)
+        }
 }
+# ---------------------------------------------------------------------------
+# Afbeeldingslocaties en icon-instellingen
+# ---------------------------------------------------------------------------
 
 ICON_SIZE = 80  # Breedte en hoogte van auto-afbeeldingen in de rankingbar
 
@@ -73,6 +101,17 @@ RANKING_BAR_CONFIG = {
     "text_color": (255, 255, 255),
     "text_thickness": 2,
     "text_offset": 10
+}
+
+# ---------------------------------------------------------------------------
+# Ranking Labels Configuratie
+# ---------------------------------------------------------------------------
+RANKING_LABELS = {
+    1: "Eerste",
+    2: "Tweede",
+    3: "Derde",
+    # Voor overige posities kun je of een vaste tekst gebruiken of een formule toepassen:
+    "default": "Laatste"
 }
 
 # ---------------------------------------------------------------------------
@@ -92,25 +131,6 @@ FINISH_ZONE = ((344, 59), (100, 15), 45)
 # ---------------------------------------------------------------------------
 CAMERA_INDEX = 0  # Standaard webcam
 BLACK_BAR_WIDTH = 200  # Breedte van zijbalken in pixels
-
-# ---------------------------------------------------------------------------
-# auto-informatie in de zijbalk
-# ---------------------------------------------------------------------------
-CAR_TEXT_POSITIONS = {
-    "blue_car": {
-        "lap_position_offset": (-40, 50),
-        "lap_complete_position_offset": (-50, 225)
-    },
-    "green_car": {
-        "lap_position_offset": (-175, 50),
-        "lap_complete_position_offset": (-175, 225)
-    }
-}
-
-SIDEBAR_TEXT_COLORS = {
-    "blue_car": (255, 0, 0),  # blauwe tekst (BGR-formaat)
-    "green_car": (0, 255, 0)  # Groene tekst (BGR-formaat)
-}
 
 # ---------------------------------------------------------------------------
 # position indicators
