@@ -24,6 +24,7 @@ class Car:
         self.lap_position = lap_position
         self.lap_complete_position = lap_complete_position
         self.color_key = color_key  # Zorg dat dit wordt opgeslagen
+        self.passed_checkpoint = False  # Nieuw attribuut voor checkpoint-logica
 
         # Andere attributen in de Car-klasse
         self.x = None

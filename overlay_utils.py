@@ -22,21 +22,13 @@ def draw_finish_zone(frame):
     finish_box = finish_box.astype(np.int32)
     cv2.polylines(frame, [finish_box], True, (255, 255, 0), 2)
     
-def draw_rotated_box(frame, box, color=(0, 255, 0), thickness=2, label="Checkpoint"):
+def draw_checkpoint_zone(frame):
     """
-    Teken een geroteerde rechthoek op het frame.
+    Tekent de checkpoint-zone als een rotated rectangle op het frame.
     """
-    # Bereken de hoekpunten van de rotatiebox
-    rect_points = cv2.boxPoints(box)
-    rect_points = np.int32(rect_points)
-
-    # Teken de polygon op het frame
-    cv2.polylines(frame, [rect_points], isClosed=True, color=color, thickness=thickness)
-
-    # Voeg een label toe
-    if label:
-        text_position = (rect_points[0][0], rect_points[0][1] - 10)
-        cv2.putText(frame, label, text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+    checkpoint_box = cv2.boxPoints(CHECKPOINT_ZONE)
+    checkpoint_box = checkpoint_box.astype(np.int32)
+    cv2.polylines(frame, [checkpoint_box], True, (0, 255, 255), 2)  # Gele kleur voor checkpoint
     
 def draw_text(frame, text, position, color, font_scale=1, thickness=2):
     

@@ -129,7 +129,7 @@ PATH_WIDTH = 10  # Breedte van het pad in pixels
 # ((center_x, center_y), (width, height), angle in graden)
 FINISH_ZONE = ((344, 59), (100, 15), 45)    
 
-CHECKPOINT_ZONE = ((544, 150), (300, 15), 45)   
+CHECKPOINT_ZONE = ((744, 250), (100, 15), 0)   
 
 # ---------------------------------------------------------------------------
 # Camera Instellingen

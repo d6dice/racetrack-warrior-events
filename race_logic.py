@@ -6,7 +6,7 @@ import time
 from path_utils import compute_cumulative_distances, calculate_progress_distance
 from tracking_utils import project_to_centerline
 from config import *
-from overlay_utils import draw_text, draw_race_track, draw_finish_zone, update_and_draw_overlays, draw_final_ranking_overlay
+from overlay_utils import draw_text, draw_race_track, draw_finish_zone, draw_checkpoint_zone, update_and_draw_overlays, draw_final_ranking_overlay
 
 def sort_cars_by_position(cars):
     """
@@ -180,6 +180,7 @@ def process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_pa
     # Teken het traject en de finish-zone op new_frame.
     draw_race_track(new_frame, expanded_path)
     draw_finish_zone(new_frame)
+    draw_checkpoint_zone(new_frame)
     
     # Update de auto-posities relatief aan de composiet.
     update_car_positions(cars, composite_width, composite_height)
@@ -222,6 +223,7 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
       - Bereken het centrum (x, y) van elke marker.
       - Controleer of een marker binnen de finish-zone ligt en verhoog,
         indien de auto van links naar rechts beweegt, de lap.
+      - Controleer of een marker door de checkpoint-zone is gegaan.
       - Bereken op basis van de marker-grootte de afstand en schaalfactor.
       - Update de positie van de auto (inclusief de opslag van de vorige positie).
       
@@ -236,9 +238,13 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
     # Bereken de finish-zone als een polygon
     finish_box = cv2.boxPoints(FINISH_ZONE)
     finish_box = np.int32(finish_box)
-    # Pas een correctie toe voor bijvoorbeeld een zijbalk (BLACK_BAR_WIDTH)
-    finish_box[:, 0] -= BLACK_BAR_WIDTH
+    finish_box[:, 0] -= BLACK_BAR_WIDTH  # Correctie voor zijbalk
     print(f"Finish box (na BLACK_BAR_WIDTH-correctie): {finish_box}")
+    
+    # Bereken de checkpoint-zone als een polygon
+    checkpoint_box = cv2.boxPoints(CHECKPOINT_ZONE)
+    checkpoint_box = np.int32(checkpoint_box)
+    checkpoint_box[:, 0] -= BLACK_BAR_WIDTH  # Correctie voor zijbalk
     
     for i, marker_id in enumerate(ids.flatten()):
         # Controleer of deze marker overeenkomt met een auto (als deze niet in de cars-dictionary staat, slaan we deze over)
@@ -253,32 +259,37 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
         y_center = int(np.mean(corners[i][0][:, 1]))
         
         # Pas een positiecorrectie toe (indien nodig; pas dit aan op basis van je kalibratie)
-        # Hier voorbeeld: een vaste offset (verschil tussen verwachte en gemeten positie)
         x_offset = 350 - 150  # Voorbeeld: 200 pixels correctie
         y_offset = 50 - 50    # Geen verticale correctie in dit voorbeeld
         adjusted_x = x_center + x_offset
         adjusted_y = y_center + y_offset
         print(f"Marker ID {marker_id}: Aangepaste positie: x = {adjusted_x}, y = {adjusted_y}")
         
-        # Controleer of de marker binnen de finish-zone ligt.
-        # Alleen als de marker in de finish-zone ligt EN als de auto in de goede richting beweegt,
-        # verhogen we de lap.
+        # Controleer of de marker binnen de checkpoint-zone ligt
+        if cv2.pointPolygonTest(checkpoint_box, (x_center, y_center), False) >= 0:
+            car.passed_checkpoint = True
+            print(f"Auto {marker_id} heeft de checkpoint gepasseerd.")
+        
+        # Controleer of de marker binnen de finish-zone ligt
         if cv2.pointPolygonTest(finish_box, (x_center, y_center), False) >= 0:
-            # Controleer of de auto van links naar rechts beweegt; als er nog geen vorige positie is, doen we de lap-check wel.
-            if (car.prev_x is None) or (adjusted_x > car.prev_x):
+            # Controleer of de auto de checkpoint heeft gepasseerd en van links naar rechts beweegt
+            if car.passed_checkpoint and ((car.prev_x is None) or (adjusted_x > car.prev_x)):
                 if not car.finished:
                     current_time = time.time()
                     if current_time - car.last_lap_time > race_manager.cooldown_time:
                         print(f"Marker ID {marker_id} passeert de finish.")
                         car.increment_lap(current_time, TOTAL_LAPS, race_manager)
+                        # Reset de checkpoint-status na het voltooien van een lap
+                        car.passed_checkpoint = False
                         # Reset de lap text timer voor de "Lap Complete" melding
                         car.lap_text_start_time = current_time
                     else:
                         print(f"Marker ID {marker_id} is in cooldown en kan de lap niet verhogen.")
             else:
-                print(f"Marker ID {marker_id}: Auto beweegt niet in de juiste richting voor een lap.")
+                # Auto heeft de checkpoint niet gepasseerd: blijf in dezelfde lap en log een waarschuwing
+                print(f"Marker ID {marker_id}: Auto heeft de checkpoint niet gepasseerd. Geen lapverhoging.")
         
-        # Bepaal de grootte (marker_size) van de marker om de afstand en schaalfactor te berekenen.
+        # Bepaal de grootte (marker_size) van de marker om de afstand en schaalfactor te berekenen
         width = np.linalg.norm(corners[i][0][0] - corners[i][0][1])
         height = np.linalg.norm(corners[i][0][0] - corners[i][0][3])
         marker_size = (width + height) / 2
@@ -286,13 +297,9 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
         scale_factor = max(INITIAL_SCALE_FACTOR * (1 / distance), MIN_SCALE_FACTOR)
         print(f"Marker ID {marker_id}: width = {width}, height = {height}, marker_size = {marker_size}, distance = {distance}, scale_factor = {scale_factor}")
         
-        # Update de positie van de auto.
-        # In de update_position functie moet je ervoor zorgen dat de huidige positie als vorige positie wordt opgeslagen.
+        # Update de positie van de auto
+        # In de update_position functie moet je ervoor zorgen dat de huidige positie als vorige positie wordt opgeslagen
         car.update_position(adjusted_x, adjusted_y, scale_factor)
         print(f"Auto {marker_id} bijgewerkte positie: x = {car.x}, y = {car.y}, scale_factor = {car.scale_factor}")
-        
-        # Optioneel: je kunt hier de auto direct overlayen op het frame, maar dit wordt vaak
-        # later gedaan in de update_and_draw_overlays functie.
-        # overlay_image(new_frame, car.car_image, adjusted_x, adjusted_y, scale_factor)
     
     return new_frame
