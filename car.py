@@ -66,7 +66,7 @@ class Car:
         return current_time - race_start_time
 
 
-    def increment_lap(self, current_time, total_laps, race_manager):  
+    def increment_lap(self, current_time, total_laps, race_manager):
         if self.last_lap_time is not None:
             lap_time = current_time - self.last_lap_time
             if hasattr(self, 'fastest_lap'):
@@ -76,10 +76,12 @@ class Car:
                 self.fastest_lap = lap_time
         else:
             self.last_lap_time = current_time
-
+    
         self.lap_count += 1
         self.last_lap_time = current_time
-
+    
+        print(f"DEBUG: Auto {self.marker_id} incremented lap to {self.lap_count} at {current_time}")
+    
         if self.lap_count >= total_laps and not self.finished:
             self.finished = True
             self.finish_time = current_time
@@ -90,7 +92,8 @@ class Car:
                 self.final_position = len(race_manager.finished_order)
             else:
                 self.final_position = 1  # fallback
-
+            print(f"DEBUG: Auto {self.marker_id} finished at position {self.final_position}")  
+                
     def get_best_lap_time(self):
         """
         Retourneert de snelste laptijd als er een gemeten is, anders None.

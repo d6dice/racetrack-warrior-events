@@ -45,7 +45,7 @@ CAR_CONFIG = {
     "blue_car": {
         "username": "Marieke",
         "marker_id": 0,  # Zorg dat deze overeenkomt met de ArUco-marker
-        "image_path": r"D:\werk\warrior events\blauwe_auto.png",
+        "image_path": r"D:\\werk\\warrior events\\blauwe_auto.png",
         "width": 640,
         "height": 480,
         "lap_position_offset": (675, 75),
@@ -55,7 +55,7 @@ CAR_CONFIG = {
     "green_car": {
         "username": "Panda",
         "marker_id": 1,
-        "image_path": r"D:\werk\warrior events\groene_auto.png",
+        "image_path": r"D:\\werk\\warrior events\\groene_auto.png",
         "width": 640,
         "height": 480,
         "lap_position_offset": (-175, 75),
@@ -65,7 +65,7 @@ CAR_CONFIG = {
     "orange_car": {
         "username": "Petan",
         "marker_id": 2,
-        "image_path": r"D:\werk\warrior events\oranje_auto.png",
+        "image_path": r"D:\\werk\\warrior events\\oranje_auto.png",
         "width": 640,
         "height": 480,
         "lap_position_offset": (675, 300),  
@@ -75,18 +75,18 @@ CAR_CONFIG = {
     "red_car": {
         "username": "Demi",
         "marker_id": 3,
-        "image_path": r"D:\werk\warrior events\rode_auto.png",
+        "image_path": r"D:\\werk\\warrior events\\rode_auto.png",
         "width": 640,
         "height": 480,
         "lap_position_offset": (-175, 300),  
         "lap_complete_position_offset": (-175, 450),
         "sidebar_text_color": (0, 0, 255)
-        }
+    }
 }
+
 # ---------------------------------------------------------------------------
 # Afbeeldingslocaties en icon-instellingen
 # ---------------------------------------------------------------------------
-
 ICON_SIZE = 80  # Breedte en hoogte van auto-afbeeldingen in de rankingbar
 
 # ---------------------------------------------------------------------------
@@ -117,14 +117,19 @@ RANKING_LABELS = {
 # ---------------------------------------------------------------------------
 # Track en Traject Instellingen
 # ---------------------------------------------------------------------------
-PATH_POINTS = [(350, 50), (400, 50), (450, 50), (550, 115), (650, 100),
-               (700, 100), (750, 200), (750, 300), (700, 400), (650, 400),
-               (550, 350), (450, 350), (350, 300), (275, 150), (300, 100), (349, 49)]
-PATH_WIDTH = 10 # Breedte van het pad in pixels
+PATH_POINTS = [
+    (350, 50), (400, 50), (450, 50), (550, 115), (650, 100),
+    (700, 100), (750, 200), (750, 300), (700, 400), (650, 400),
+    (550, 350), (450, 350), (350, 300), (275, 150), (300, 100),
+    (349, 49)
+]
+PATH_WIDTH = 10  # Breedte van het pad in pixels
 
 # Finish Zone als een rotated rectangle:
 # ((center_x, center_y), (width, height), angle in graden)
 FINISH_ZONE = ((344, 59), (100, 15), 45)    
+
+CHECKPOINT_ZONE = ((544, 150), (300, 15), 45)   
 
 # ---------------------------------------------------------------------------
 # Camera Instellingen
@@ -148,6 +153,7 @@ POSITION_INDICATOR_CONFIG = {
          "default": (255, 255, 255)  # Wit als fallback (voor positie 4 en verder)
     }
 }
+
 # ---------------------------------------------------------------------------
 # Startscherm en Countdown Instellingen
 # ---------------------------------------------------------------------------
@@ -188,8 +194,6 @@ FINAL_OVERLAY_CONFIG = {
     "text_font_scale": 1.0,
     "text_thickness": 2,
     "text_color": (0, 0, 0)     # zwart
-    
 }
 
 FINAL_OVERLAY_DELAY = 3.0  # Vertraag de finale overlay met 3 seconden
-

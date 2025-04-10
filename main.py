@@ -1,4 +1,4 @@
-#Main.py
+# Main.py
 
 import cv2
 import numpy as np
@@ -15,7 +15,16 @@ from tracking_utils import project_to_centerline, process_detected_markers
 from race_logic import sort_cars_by_position, update_car_positions, handle_countdown, process_frame
 from overlay_utils import draw_final_ranking_overlay, overlay_position_indicator, draw_race_track, draw_finish_zone, draw_text, update_and_draw_overlays, display_car_info
 from car_utils import initialize_cars
-        
+import signal
+
+def handle_close(sig, frame):
+    print("Programma wordt afgesloten...")
+    cv2.destroyAllWindows()
+    exit(0)
+
+signal.signal(signal.SIGINT, handle_close)
+signal.signal(signal.SIGTERM, handle_close)
+
 def main():
     # Print de gebruikte OpenCV-versie
     print(f"OpenCV-versie: {cv2.__version__}")
@@ -63,6 +72,10 @@ def main():
             race_manager.reset_race()
             for car in cars.values():
                 car.reset()
+
+        # Controleer of het venster is gesloten
+        if cv2.getWindowProperty("ArUco Auto Tracken met Ronde Detectie", cv2.WND_PROP_VISIBLE) < 1:
+            break
 
     # Zorg ervoor dat de camera netjes wordt vrijgegeven en vensters worden gesloten.
     cap.release()
