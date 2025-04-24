@@ -43,7 +43,7 @@ MIN_SCALE_FACTOR = 0.2
 # ---------------------------------------------------------------------------
 CAR_CONFIG = {
     "blue_car": {
-        "username": "Marieke",
+        "username": None,  # Gebruikersnaam wordt ingesteld via het menu
         "marker_id": 0,  # Zorg dat deze overeenkomt met de ArUco-marker
         "image_path": r"D:\\werk\\warrior events\\blauwe_auto.png",
         "width": 640,
@@ -53,7 +53,7 @@ CAR_CONFIG = {
         "sidebar_text_color": (255, 0, 0)
     },
     "green_car": {
-        "username": "Panda",
+        "username": None,  # Gebruikersnaam wordt ingesteld via het menu
         "marker_id": 1,
         "image_path": r"D:\\werk\\warrior events\\groene_auto.png",
         "width": 640,
@@ -63,7 +63,7 @@ CAR_CONFIG = {
         "sidebar_text_color": (0, 255, 0)
     },
     "orange_car": {
-        "username": "Petan",
+        "username": None,  # Gebruikersnaam wordt ingesteld via het menu
         "marker_id": 2,
         "image_path": r"D:\\werk\\warrior events\\oranje_auto.png",
         "width": 640,
@@ -73,7 +73,7 @@ CAR_CONFIG = {
         "sidebar_text_color": (0, 165, 255)
     },
     "red_car": {
-        "username": "Demi",
+        "username": None,  # Gebruikersnaam wordt ingesteld via het menu
         "marker_id": 3,
         "image_path": r"D:\\werk\\warrior events\\rode_auto.png",
         "width": 640,
@@ -82,6 +82,14 @@ CAR_CONFIG = {
         "lap_complete_position_offset": (-175, 450),
         "sidebar_text_color": (0, 0, 255)
     }
+}
+    
+# Mapping van Nederlandse termen naar Engelse termen in CAR_CONFIG
+COLOR_MAPPING = {
+    "blauw": "blue_car",
+    "groen": "green_car",
+    "oranje": "orange_car",
+    "rood": "red_car"
 }
 
 # ---------------------------------------------------------------------------
@@ -138,7 +146,7 @@ CAMERA_INDEX = 0  # Standaard webcam
 BLACK_BAR_WIDTH = 200  # Breedte van zijbalken in pixels
 
 # ---------------------------------------------------------------------------
-# position indicators
+# position indicators (goud, zilver en brons)
 # ---------------------------------------------------------------------------
 POSITION_INDICATOR_CONFIG = {
     "radius_factor": 50,           # Basisstraal voor de indicator (wordt vermenigvuldigd met de schaalfactor van de auto)

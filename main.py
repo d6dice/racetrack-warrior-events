@@ -2,20 +2,17 @@
 
 import cv2
 import numpy as np
-import time
-import cv2.aruco as aruco
+import threading
+import tkinter as tk
+import signal
 
 from config import *
-from car import Car
-from race_manager import RaceManager
-from image_utils import load_image, overlay_image
-from path_utils import expand_path, compute_cumulative_distances, calculate_progress_distance, expand_path
-from ranking_bar import draw_ranking_bar
-from tracking_utils import project_to_centerline, process_detected_markers
-from race_logic import sort_cars_by_position, update_car_positions, handle_countdown, process_frame
-from overlay_utils import draw_final_ranking_overlay, overlay_position_indicator, draw_race_track, draw_finish_zone, draw_text, update_and_draw_overlays, display_car_info
 from car_utils import initialize_cars
-import signal
+from race_manager import RaceManager
+from path_utils import expand_path
+from race_logic import process_frame, run_race
+from menu_to_race import RaceMenu
+
 
 def handle_close(sig, frame):
     print("Programma wordt afgesloten...")
@@ -42,40 +39,8 @@ def main():
 
     race_manager = RaceManager()
 
-    # Definieer het ArUco-dictionary en de detectieparameters
-    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-    parameters = cv2.aruco.DetectorParameters()
-
-    # Maak het uitgezette pad (expanded_path) voor het parcours
-    expanded_path = expand_path(PATH_POINTS, width=PATH_WIDTH)
-
-    while True:
-        ret, frame = cap.read()
-        if not ret or frame is None:
-            print("Frame error, probeer opnieuw...")
-            continue
-
-        # Verwerk het frame: dit omvat het tekenen van het parcours, finish-zone, countdown, marker-detectie, en overlays
-        processed_frame = process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_path)
-
-        # Toon het verwerkte frame
-        cv2.imshow("ArUco Auto Tracken met Ronde Detectie", processed_frame)
-
-        # Afhandeling van toetsen:
-        key = cv2.waitKey(1) & 0xFF
-        if key in [ord('q'), 27]:
-            break
-        elif key in [13, 10]:  # Enter toets
-            if not race_manager.race_started and race_manager.countdown_start_time is None:
-                race_manager.start_countdown()
-        elif key == ord('r'):
-            race_manager.reset_race()
-            for car in cars.values():
-                car.reset()
-
-        # Controleer of het venster is gesloten
-        if cv2.getWindowProperty("ArUco Auto Tracken met Ronde Detectie", cv2.WND_PROP_VISIBLE) < 1:
-            break
+    # Start de race
+    run_race(cap, cars, race_manager)
 
     # Zorg ervoor dat de camera netjes wordt vrijgegeven en vensters worden gesloten.
     cap.release()
