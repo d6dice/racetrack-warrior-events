@@ -11,7 +11,7 @@ from car_utils import initialize_cars
 from race_manager import RaceManager
 from path_utils import expand_path
 from race_logic import process_frame
-from menu_to_race import RaceMenu
+from race_menu import RaceMenu
 
 
 def handle_close(sig, frame):
