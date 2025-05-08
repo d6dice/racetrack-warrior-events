@@ -165,11 +165,11 @@ POSITION_INDICATOR_CONFIG = {
 # ---------------------------------------------------------------------------
 # Startscherm en Countdown Instellingen
 # ---------------------------------------------------------------------------
-START_TEXT = "Druk op Enter om te starten"
-START_TEXT_POSITION = (300, 300)
-START_TEXT_FONT_SCALE = 1
+START_TEXT = "Ready?"
+START_TEXT_POSITION = (100, 300)
+START_TEXT_FONT_SCALE = 5
 START_TEXT_COLOR = (255, 255, 255)
-START_TEXT_THICKNESS = THICKNESS
+START_TEXT_THICKNESS = 15
 
 # Tekst instellingen voor de countdown
 COUNTDOWN_FONT_SCALE = 5

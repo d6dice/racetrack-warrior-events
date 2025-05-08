@@ -27,7 +27,6 @@ def handle_close(sig, frame):
 signal.signal(signal.SIGINT, handle_close)
 signal.signal(signal.SIGTERM, handle_close)
 
-
 def main():
     print("main() is gestart!")  # Debug-uitvoer
 
@@ -36,6 +35,9 @@ def main():
     print("Tkinter venster geopend!")  # Debug-uitvoer
     race_menu = RaceMenu(root)
     print("RaceMenu geïnitialiseerd!")  # Debug-uitvoer
+
+    # Initialiseer race manager op hoog niveau
+    race_manager = RaceManager()
 
     def start_race():
         print("Gebruiker heeft 'Start Race' geklikt.")  # Debug-uitvoer
@@ -57,7 +59,7 @@ def main():
 
         print("Deelnemende auto's:", participating_cars)  # Debug-uitvoer
 
-        # Initialiseer auto's en de race manager
+        # Initialiseer auto's
         cars = initialize_cars(participating_cars)
         for marker_id, car in cars.items():
             print(f"✅ Auto {marker_id}: color_key = {car.color_key}, color = {car.color}, username = {car.username}")
@@ -69,9 +71,6 @@ def main():
             return
 
         print("Camera geopend!")  # Debug-uitvoer
-
-        # Initialiseer race manager
-        race_manager = RaceManager()
 
         # Debug-uitvoer vóór het starten van de thread
         print("Thread wordt aangemaakt voor run_race...")  # Debug-uitvoer

@@ -185,17 +185,13 @@ def update_and_draw_overlays(frame, cars, race_manager):
     
     return frame
 
-
 def display_car_info(cars, frame, current_time, race_manager):
     """
     Toont informatie over elke auto op het frame. Dit omvat:
       - De gebruikersnaam van de auto (boven de overlay-tekst).
       - Huidige lap-info: of de auto "Finished" is, of welke lap actief is.
-      - Als de lap net voltooid is, wordt "Lap Complete" weergegeven met de lap-tijd.
       - Totale racetijd en de snelste lap.
       - Eventueel een positie-indicator.
-    
-    Alle overlay-posities en kleuren worden per auto ingesteld via de values uit de CAR_CONFIG.
     """
     for car in cars.values():
         if not car.lap_position or not car.lap_complete_position:
@@ -212,52 +208,60 @@ def display_car_info(cars, frame, current_time, race_manager):
         username_pos = (pos[0], pos[1] - 30)
         draw_text(frame, username, username_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
 
-        lap_time_diff = current_time - car.lap_text_start_time
+        # Controleer of de race is gestart
+        if not race_manager.race_started:
+            total_time_str = "0.000s"
+            best_lap_str = "N/A"
+            lap_str = "Lap 1"
+        else:
+            lap_time_diff = current_time - car.lap_text_start_time
 
-        # Als de lap net is voltooid, toon "Lap Complete" en de lap-tijd
-        if lap_time_diff < LAP_COMPLETE_DURATION:
-            draw_text(frame, "Lap Complete", car.lap_complete_position, color, FONT_SCALE_SIDEBAR, THICKNESS)
-            if car.lap_times:
-                last_lap_time = car.lap_times[-1]
-                if last_lap_time > 0:
-                    minutes, seconds = divmod(last_lap_time, 60)
-                    lap_time_str = f"{int(minutes)}m {seconds:.2f}s"
-                    label_pos = (car.lap_complete_position[0], car.lap_complete_position[1] + 30)
-                    draw_text(frame, "Lap Time:", label_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
-                    value_pos = (label_pos[0], label_pos[1] + 25)
-                    draw_text(frame, lap_time_str, value_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
+            # Als de lap net is voltooid, toon "Lap Complete" en de lap-tijd
+            if lap_time_diff < LAP_COMPLETE_DURATION:
+                draw_text(frame, "Lap Complete", car.lap_complete_position, color, FONT_SCALE_SIDEBAR, THICKNESS)
+                if car.lap_times:
+                    last_lap_time = car.lap_times[-1]
+                    if last_lap_time > 0:
+                        minutes, seconds = divmod(last_lap_time, 60)
+                        lap_time_str = f"{int(minutes)}m {seconds:.2f}s"
+                        label_pos = (car.lap_complete_position[0], car.lap_complete_position[1] + 30)
+                        draw_text(frame, "Lap Time:", label_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
+                        value_pos = (label_pos[0], label_pos[1] + 25)
+                        draw_text(frame, lap_time_str, value_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
 
-        if race_manager.race_start_time:
+            # Bereken en formatteer de totale tijd
             if car.finished and car.finish_time is not None:
                 total_race_time = car.finish_time - race_manager.race_start_time
             else:
                 total_race_time = current_time - race_manager.race_start_time
             total_minutes, total_seconds = divmod(total_race_time, 60)
             total_time_str = f"{int(total_minutes)}m {total_seconds:.2f}s"
-        else:
-            total_time_str = "N/A"
 
-        best_lap_time = car.get_best_lap_time()
-        if best_lap_time:
-            best_minutes, best_seconds = divmod(best_lap_time, 60)
-            best_lap_str = f"{int(best_minutes)}m {best_seconds:.2f}s"
-        else:
-            best_lap_str = "N/A"
+            # Bereken en formatteer de snelste ronde
+            best_lap_time = car.get_best_lap_time()
+            if best_lap_time:
+                best_minutes, best_seconds = divmod(best_lap_time, 60)
+                best_lap_str = f"{int(best_minutes)}m {best_seconds:.2f}s"
+            else:
+                best_lap_str = "N/A"
 
-        if car.finished:
-            draw_text(frame, "Finished", pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
-        else:
-            lap_str = f"Lap {car.lap_count + 1}"
-            draw_text(frame, lap_str, pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
+            # Toon de huidige ronde
+            if car.finished:
+                draw_text(frame, "Finished", pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
+            else:
+                lap_str = f"Lap {car.lap_count + 1}"
 
+        # Teken tijd- en ronde-informatie
         total_label_pos = (pos[0], pos[1] + 35)
         total_value_pos = (pos[0], total_label_pos[1] + 25)
         best_label_pos = (pos[0], total_value_pos[1] + 35)
         best_value_pos = (pos[0], best_label_pos[1] + 25)
 
+        draw_text(frame, lap_str, pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
         draw_text(frame, "Total Time:", total_label_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
         draw_text(frame, total_time_str, total_value_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
         draw_text(frame, "Fastest Lap:", best_label_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
         draw_text(frame, best_lap_str, best_value_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
 
+        # Teken de positie-indicator
         overlay_position_indicator(frame, car)
