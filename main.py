@@ -1,4 +1,4 @@
-# Main.py
+print("main.py wordt uitgevoerd!")  # Debug-uitvoer
 
 import cv2
 import numpy as np
@@ -10,87 +10,41 @@ from config import *
 from car_utils import initialize_cars
 from race_manager import RaceManager
 from path_utils import expand_path
-from race_logic import process_frame
+from race_logic import process_frame, run_race
 from race_menu import RaceMenu
 
 
 def handle_close(sig, frame):
+    """
+    Zorgt voor een nette afsluiting van het programma.
+    """
     print("Programma wordt afgesloten...")
     cv2.destroyAllWindows()
     exit(0)
 
+
+# Registreer de signalen voor een nette afsluiting
 signal.signal(signal.SIGINT, handle_close)
 signal.signal(signal.SIGTERM, handle_close)
 
-def run_race(cars, race_manager, cap):
-    """
-    Logica om de race te runnen.
-    """
-    # Definieer het ArUco-dictionary en de detectieparameters
-    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-    parameters = cv2.aruco.DetectorParameters()
-
-    # Maak het uitgezette pad (expanded_path) voor het parcours
-    expanded_path = expand_path(PATH_POINTS, width=PATH_WIDTH)
-
-    while True:
-        ret, frame = cap.read()
-        if not ret or frame is None:
-            print("⚠️ Geen frame ontvangen van de camera. Controleer de verbinding.")
-            continue
-
-        # Debug: Log frame-informatie
-        print(f"✅ Frame ontvangen. Afmetingen: {frame.shape}")
-
-        # Detecteer ArUco-markers
-        corners, ids, _ = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=parameters)
-        if ids is not None:
-            print(f"✅ Gedetecteerde markers: {ids.flatten()}")
-            cv2.aruco.drawDetectedMarkers(frame, corners, ids)  # Teken gedetecteerde markers op het frame
-        else:
-            print("⚠️ Geen ArUco-markers gedetecteerd.")
-
-        # Fallback-logica voor auto's zonder posities
-        for car_id, car in cars.items():
-            if car.x is None or car.y is None:
-                print(f"⚠️ Auto {car.color_key} heeft geen geldige positie. Standaardwaarden ingesteld.")
-                car.x, car.y = 0, 0  # Standaardpositie
-
-        # Verwerk het frame: Dit omvat het tekenen van het parcours, finish-zone, countdown, marker-detectie, en overlays
-        try:
-            processed_frame = process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_path)
-        except Exception as e:
-            print(f"❌ Fout bij verwerken frame: {e}")
-            continue
-
-        # Toon het verwerkte frame
-        cv2.imshow("ArUco Auto Tracken met Ronde Detectie", processed_frame)
-
-        # Controleer het sluiten van het venster en toetsen
-        key = cv2.waitKey(1) & 0xFF
-        if key == 27 or cv2.getWindowProperty("ArUco Auto Tracken met Ronde Detectie", cv2.WND_PROP_VISIBLE) < 1:  # 27 is de ASCII-code voor Esc
-            print("Programma wordt afgesloten...")
-            break
-
-    # Zorg ervoor dat de camera netjes wordt vrijgegeven en vensters worden gesloten
-    cap.release()
-    cv2.destroyAllWindows()
 
 def main():
-    # Open de camera
-    cap = cv2.VideoCapture(CAMERA_INDEX)
-    if not cap.isOpened():
-        print("❌ Kan de camera niet openen.")
-        return
+    print("main() is gestart!")  # Debug-uitvoer
 
     # Open een Tkinter venster voor het menu
     root = tk.Tk()
+    print("Tkinter venster geopend!")  # Debug-uitvoer
     race_menu = RaceMenu(root)
+    print("RaceMenu geïnitialiseerd!")  # Debug-uitvoer
 
     def start_race():
+        print("Gebruiker heeft 'Start Race' geklikt.")  # Debug-uitvoer
+
         # Haal de gebruikersnamen en deelnemende auto's op uit het menu
         participating_cars = []
         for color, username in race_menu.auto_data.items():
+            print(f"Auto kleur: {color}, Gebruiker: {username.get()}")  # Debug-uitvoer
+
             # Gebruik de mapping om de kleur om te zetten
             mapped_color = COLOR_MAPPING.get(color.lower())
             if mapped_color and username.get().strip():
@@ -101,17 +55,33 @@ def main():
             print("❌ Geen auto's geselecteerd. Het programma wordt afgesloten.")
             return
 
+        print("Deelnemende auto's:", participating_cars)  # Debug-uitvoer
+
         # Initialiseer auto's en de race manager
         cars = initialize_cars(participating_cars)
         for marker_id, car in cars.items():
             print(f"✅ Auto {marker_id}: color_key = {car.color_key}, color = {car.color}, username = {car.username}")
 
-        # Start de race-logica in een aparte thread
-        race_manager = RaceManager()
-        threading.Thread(target=lambda: run_race(cars, race_manager, cap), daemon=True).start()
+        # Open de camera
+        cap = cv2.VideoCapture(CAMERA_INDEX)
+        if not cap.isOpened():
+            print("❌ Kan de camera niet openen.")
+            return
 
-        # Start de countdown direct
-        race_manager.start_countdown()
+        print("Camera geopend!")  # Debug-uitvoer
+
+        # Initialiseer race manager
+        race_manager = RaceManager()
+
+        # Debug-uitvoer vóór het starten van de thread
+        print("Thread wordt aangemaakt voor run_race...")  # Debug-uitvoer
+
+        # Start de race-logica in een aparte thread
+        thread = threading.Thread(target=lambda: run_race(cars, race_manager, cap), daemon=True)
+        thread.start()
+
+        # Debug-uitvoer na het starten van de thread
+        print("Thread voor run_race succesvol gestart!")  # Debug-uitvoer
 
         # Sluit het menu
         root.destroy()
@@ -120,7 +90,9 @@ def main():
     race_menu.start_button.config(command=start_race)
 
     root.mainloop()
+    print("Tkinter event loop beëindigd!")  # Debug-uitvoer
 
 
 if __name__ == '__main__':
+    print("main() wordt aangeroepen!")  # Debug-uitvoer
     main()

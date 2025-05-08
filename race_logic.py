@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import time
 
-from path_utils import compute_cumulative_distances, calculate_progress_distance
+from path_utils import compute_cumulative_distances, calculate_progress_distance, expand_path
 from tracking_utils import project_to_centerline
 from config import *
 from overlay_utils import draw_text, draw_race_track, draw_finish_zone, draw_checkpoint_zone, update_and_draw_overlays, draw_final_ranking_overlay
@@ -219,35 +219,35 @@ def process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_pa
 def process_markers(cars, corners, ids, new_frame, race_manager):
     """
     Verwerkt de gedetecteerde ArUco-markers:
-      - Teken de markers in het frame.
+      - Controleert dubbele verwerking binnen dezelfde detectieronde.
       - Bereken het centrum (x, y) van elke marker.
-      - Controleer of een marker binnen de finish-zone ligt en verhoog,
-        indien de auto van links naar rechts beweegt, de lap.
-      - Controleer of een marker door de checkpoint-zone is gegaan.
-      - Bereken op basis van de marker-grootte de afstand en schaalfactor.
       - Update de positie van de auto (inclusief de opslag van de vorige positie).
-      
-    De functie gaat er vanuit dat de Car-objecten alle nodige attributen bevatten,
-    zoals lap_position, lap_complete_position, sidebar_text_color, enzovoort, zoals ingesteld via CAR_CONFIG.
     """
+    # Set om al verwerkte markers in deze detectieronde bij te houden
+    processed_markers = set()
+
     # Teken alle gedetecteerde markers in het frame
     cv2.aruco.drawDetectedMarkers(new_frame, corners, ids)
     print(f"Detected IDs: {ids}")
     print(f"Detected Corners: {corners}")
     
-    # Bereken de finish-zone als een polygon
+    # Bereken de finish- en checkpoint-zones als polygonen
     finish_box = cv2.boxPoints(FINISH_ZONE)
     finish_box = np.int32(finish_box)
     finish_box[:, 0] -= BLACK_BAR_WIDTH  # Correctie voor zijbalk
-    print(f"Finish box (na BLACK_BAR_WIDTH-correctie): {finish_box}")
     
-    # Bereken de checkpoint-zone als een polygon
     checkpoint_box = cv2.boxPoints(CHECKPOINT_ZONE)
     checkpoint_box = np.int32(checkpoint_box)
     checkpoint_box[:, 0] -= BLACK_BAR_WIDTH  # Correctie voor zijbalk
     
     for i, marker_id in enumerate(ids.flatten()):
-        # Controleer of deze marker overeenkomt met een auto (als deze niet in de cars-dictionary staat, slaan we deze over)
+        # Controleer of de marker al verwerkt is in deze detectieronde
+        if marker_id in processed_markers:
+            print(f"Marker ID {marker_id} is al verwerkt in deze detectieronde.")
+            continue
+        processed_markers.add(marker_id)
+
+        # Controleer of deze marker overeenkomt met een auto
         if marker_id not in cars:
             print(f"Marker ID {marker_id} komt niet overeen met een auto.")
             continue
@@ -258,7 +258,7 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
         x_center = int(np.mean(corners[i][0][:, 0]))
         y_center = int(np.mean(corners[i][0][:, 1]))
         
-        # Pas een positiecorrectie toe (indien nodig; pas dit aan op basis van je kalibratie)
+        # Pas een positiecorrectie toe (indien nodig)
         x_offset = 350 - 150  # Voorbeeld: 200 pixels correctie
         y_offset = 50 - 50    # Geen verticale correctie in dit voorbeeld
         adjusted_x = x_center + x_offset
@@ -275,16 +275,12 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
             # Controleer of de auto de checkpoint heeft gepasseerd en van links naar rechts beweegt
             if car.passed_checkpoint and ((car.prev_x is None) or (adjusted_x > car.prev_x)):
                 if not car.finished:
-                    current_time = time.time()
-                    if current_time - car.last_lap_time > race_manager.cooldown_time:
-                        print(f"Marker ID {marker_id} passeert de finish.")
-                        car.increment_lap(current_time, TOTAL_LAPS, race_manager)
-                        # Reset de checkpoint-status na het voltooien van een lap
-                        car.passed_checkpoint = False
-                        # Reset de lap text timer voor de "Lap Complete" melding
-                        car.lap_text_start_time = current_time
-                    else:
-                        print(f"Marker ID {marker_id} is in cooldown en kan de lap niet verhogen.")
+                    print(f"Marker ID {marker_id} passeert de finish.")
+                    car.increment_lap(time.time(), TOTAL_LAPS, race_manager)
+                    # Reset de checkpoint-status na het voltooien van een lap
+                    car.passed_checkpoint = False
+                    # Reset de lap text timer voor de "Lap Complete" melding
+                    car.lap_text_start_time = time.time()
             else:
                 print(f"Marker ID {marker_id}: Auto beweegt niet in de juiste richting of heeft de checkpoint niet gepasseerd.")
         
@@ -297,8 +293,92 @@ def process_markers(cars, corners, ids, new_frame, race_manager):
         print(f"Marker ID {marker_id}: width = {width}, height = {height}, marker_size = {marker_size}, distance = {distance}, scale_factor = {scale_factor}")
         
         # Update de positie van de auto
-        # In de update_position functie moet je ervoor zorgen dat de huidige positie als vorige positie wordt opgeslagen
         car.update_position(adjusted_x, adjusted_y, scale_factor)
         print(f"Auto {marker_id} bijgewerkte positie: x = {car.x}, y = {car.y}, scale_factor = {car.scale_factor}")
     
     return new_frame
+
+def process_frame_loop(cars, race_manager, cap, parameters, aruco_dict, expanded_path):
+    """
+    Beheert een continue lus om frames te verwerken met behulp van process_frame.
+    """
+    while True:
+        ret, frame = cap.read()
+        if not ret or frame is None:
+            print("⚠️ Geen frame ontvangen van de camera. Controleer de verbinding.")
+            continue
+
+        try:
+            # Verwerk het frame via de bestaande process_frame-functie
+            processed_frame = process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_path)
+        except Exception as e:
+            print(f"❌ Fout bij verwerken frame: {e}")
+            continue
+
+        # Toon het verwerkte frame
+        cv2.imshow("ArUco Auto Tracken met Ronde Detectie", processed_frame)
+
+        # Controleer of het venster gesloten is of op Esc is gedrukt
+        key = cv2.waitKey(1) & 0xFF
+        if key == 27 or cv2.getWindowProperty("ArUco Auto Tracken met Ronde Detectie", cv2.WND_PROP_VISIBLE) < 1:
+            break
+
+    # Zorg ervoor dat de camera netjes wordt vrijgegeven en vensters worden gesloten
+    cap.release()
+    cv2.destroyAllWindows()
+    
+def run_race(cars, race_manager, cap):
+    """
+    Coördineert de race door camera-frames te verwerken en op het scherm weer te geven.
+
+    Parameters:
+    - cars: Dictionary met auto-objecten.
+    - race_manager: Het RaceManager-object dat de race beheert.
+    - cap: OpenCV VideoCapture-object voor toegang tot de camera.
+
+    """
+    try:
+        print("run_race is gestart!")  # Debug-uitvoer
+
+        # Definieer het ArUco-dictionary en de detectieparameters
+        aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        parameters = cv2.aruco.DetectorParameters()
+
+        # Maak het uitgezette pad (expanded_path) voor het parcours
+        expanded_path = expand_path(PATH_POINTS, width=PATH_WIDTH)
+        print("Expanded path succesvol gegenereerd!")  # Debug-uitvoer
+
+        # Start de race-loop
+        while True:
+            # Lees een frame van de camera
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                print("⚠️ Geen frame ontvangen van de camera. Controleer de verbinding.")
+                continue
+
+            print("✅ Frame ontvangen!")  # Debug-uitvoer
+
+            # Probeer het frame te verwerken
+            try:
+                processed_frame = process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_path)
+            except Exception as e:
+                print(f"❌ Fout bij verwerken frame: {e}")
+                continue
+
+            # Toon het verwerkte frame
+            cv2.imshow("ArUco Auto Tracken met Ronde Detectie", processed_frame)
+
+            # Controleer of de gebruiker het venster wil sluiten
+            key = cv2.waitKey(1) & 0xFF
+            if key == 27 or cv2.getWindowProperty("ArUco Auto Tracken met Ronde Detectie", cv2.WND_PROP_VISIBLE) < 1:
+                print("Programma wordt afgesloten...")
+                break
+
+        # Zorg ervoor dat de camera netjes wordt vrijgegeven en vensters worden gesloten
+        cap.release()
+        cv2.destroyAllWindows()
+
+    except Exception as e:
+        print(f"❌ Onverwachte fout in run_race: {e}")
+        cap.release()
+        cv2.destroyAllWindows()

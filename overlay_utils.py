@@ -159,17 +159,9 @@ def update_and_draw_overlays(frame, cars, race_manager):
     auto-informatie overlays op basis van de display-coördinaten die eerder in process_frame 
     (bijv. car.display_x en car.display_y) zijn ingesteld. 
     
-    Omdat alle auto‑informatie nu dynamisch in de Car-objecten zit (via CAR_CONFIG),
+    Omdat alle auto-informatie nu dynamisch in de Car-objecten zit (via CAR_CONFIG),
     hoeft deze functie niet aangepast te worden als je een auto toevoegt of verwijdert.
-    
-    Deze functie voert de volgende stappen uit:
-      1. Sorteer de auto's volgens de gewenste progress (met sort_cars_by_position).
-      2. Haal de huidige tijd op en update de overlays (via display_car_info).
-      3. Teken de ranking bar op het frame (met draw_ranking_bar).
-      4. Voor iedere auto:
-         - Teken de auto-afbeelding op basis van de display-coördinaten.
-         - Teken tevens de position indicator.
-    
+
     Returns:
         frame (numpy.ndarray): Het originele frame met alle overlays toegevoegd.
     """
@@ -185,9 +177,11 @@ def update_and_draw_overlays(frame, cars, race_manager):
     
     # Voor elke auto: teken de auto-afbeelding en de position indicator op basis van de display-coördinaten die eerder zijn vastgesteld.
     for car in sorted_cars:
-        if hasattr(car, "display_x") and hasattr(car, "display_y"):
-            overlay_image(frame, car.car_image, car.display_x, car.display_y, car.scale_factor)
+        if car.x is not None and car.y is not None:  # Controleer of de marker gedetecteerd is
+            overlay_image(frame, car.car_image, car.x, car.y, car.scale_factor)
             overlay_position_indicator(frame, car)
+        else:
+            print(f"Auto {car.marker_id} heeft nog geen geldige positie. Overslaan.")
     
     return frame
 
