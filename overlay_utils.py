@@ -202,10 +202,16 @@ def display_car_info(cars, frame, current_time, race_manager):
         color = car.color  
         username = car.username if car.username is not None else car.color_key.capitalize()
 
-        pos = car.lap_position  # Basispositie voor overlay-teksten
+        # Pas de BLACK_BAR_WIDTH toe op de X-coördinaten van de overlay
+        adjusted_lap_position = (car.lap_position[0] + BLACK_BAR_WIDTH, car.lap_position[1])
+        adjusted_complete_position = (car.lap_complete_position[0] + BLACK_BAR_WIDTH, car.lap_complete_position[1])
+
+        # Debug-uitvoer voor aangepaste posities
+        print(f"Car {car.marker_id}: oorspronkelijke lap_position = {car.lap_position}, aangepaste lap_position = {adjusted_lap_position}")
+        print(f"Car {car.marker_id}: oorspronkelijke lap_complete_position = {car.lap_complete_position}, aangepaste lap_complete_position = {adjusted_complete_position}")
 
         # Teken de gebruikersnaam (30 pixels boven de basispositie)
-        username_pos = (pos[0], pos[1] - 30)
+        username_pos = (adjusted_lap_position[0], adjusted_lap_position[1] - 30)
         draw_text(frame, username, username_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
 
         # Controleer of de race is gestart
@@ -218,13 +224,13 @@ def display_car_info(cars, frame, current_time, race_manager):
 
             # Als de lap net is voltooid, toon "Lap Complete" en de lap-tijd
             if lap_time_diff < LAP_COMPLETE_DURATION:
-                draw_text(frame, "Lap Complete", car.lap_complete_position, color, FONT_SCALE_SIDEBAR, THICKNESS)
+                draw_text(frame, "Lap Complete", adjusted_complete_position, color, FONT_SCALE_SIDEBAR, THICKNESS)
                 if car.lap_times:
                     last_lap_time = car.lap_times[-1]
                     if last_lap_time > 0:
                         minutes, seconds = divmod(last_lap_time, 60)
                         lap_time_str = f"{int(minutes)}m {seconds:.2f}s"
-                        label_pos = (car.lap_complete_position[0], car.lap_complete_position[1] + 30)
+                        label_pos = (adjusted_complete_position[0], adjusted_complete_position[1] + 30)
                         draw_text(frame, "Lap Time:", label_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
                         value_pos = (label_pos[0], label_pos[1] + 25)
                         draw_text(frame, lap_time_str, value_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
@@ -247,17 +253,17 @@ def display_car_info(cars, frame, current_time, race_manager):
 
             # Toon de huidige ronde
             if car.finished:
-                draw_text(frame, "Finished", pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
+                draw_text(frame, "Finished", adjusted_lap_position, color, FONT_SCALE_SIDEBAR, THICKNESS)
             else:
                 lap_str = f"Lap {car.lap_count + 1}"
 
         # Teken tijd- en ronde-informatie
-        total_label_pos = (pos[0], pos[1] + 35)
-        total_value_pos = (pos[0], total_label_pos[1] + 25)
-        best_label_pos = (pos[0], total_value_pos[1] + 35)
-        best_value_pos = (pos[0], best_label_pos[1] + 25)
+        total_label_pos = (adjusted_lap_position[0], adjusted_lap_position[1] + 35)
+        total_value_pos = (adjusted_lap_position[0], total_label_pos[1] + 25)
+        best_label_pos = (adjusted_lap_position[0], total_value_pos[1] + 35)
+        best_value_pos = (adjusted_lap_position[0], best_label_pos[1] + 25)
 
-        draw_text(frame, lap_str, pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
+        draw_text(frame, lap_str, adjusted_lap_position, color, FONT_SCALE_SIDEBAR, THICKNESS)
         draw_text(frame, "Total Time:", total_label_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
         draw_text(frame, total_time_str, total_value_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)
         draw_text(frame, "Fastest Lap:", best_label_pos, color, FONT_SCALE_SIDEBAR, THICKNESS)

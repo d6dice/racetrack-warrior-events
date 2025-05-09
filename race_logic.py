@@ -108,7 +108,7 @@ def update_car_positions(cars, frame_width, frame_height):
         print(f"Car {car.color_key}: overlay lap_position: ({new_lap_x}, {new_lap_y}), "
               f"lap_complete_position: ({new_complete_x}, {new_complete_y})")
 
-def initialize_frame(frame, cars):
+def initialize_frame(frame, cars, race_manager):
     """
     Initialiseert het volledige frame met alle vaste overlays, zoals:
     - Zwarte balken
@@ -126,17 +126,24 @@ def initialize_frame(frame, cars):
     cam_region = (slice(0, frame.shape[0]), slice(BLACK_BAR_WIDTH, BLACK_BAR_WIDTH + frame.shape[1]))
     new_frame[cam_region] = frame
 
+    # Debug: Controleer de afmetingen en regio's
+    print(f"Composite frame: width = {composite_width}, height = {composite_height}")
+    print(f"Camera regio: {cam_region}")
+
     # Teken vaste overlays
     draw_race_track(new_frame, expand_path(PATH_POINTS, PATH_WIDTH))
     draw_finish_zone(new_frame)
     draw_checkpoint_zone(new_frame)
-   
-    # Teken auto-informatie direct bij het opstarten
-    current_time = time.time()  # Haal de huidige tijd op
-    for car_id, car in cars.items():
-        display_car_info({car_id: car}, new_frame, current_time, race_manager)  # Geef de auto door in een dict
 
-    return new_frame
+    # Teken auto-informatie direct bij het opstarten
+    current_time = time.time()
+    for car_id, car in cars.items():
+        # Pas de BLACK_BAR_WIDTH toe op de X-coördinaten van de auto
+        adjusted_x = car.x + BLACK_BAR_WIDTH if car.x else None
+        car.x = adjusted_x  # Update de auto-coördinaten met de offset
+        print(f"Auto {car_id} aangepaste x-coördinaat: {adjusted_x}")
+
+        display_car_info({car_id: car}, new_frame, current_time, race_manager)
 
     return new_frame
 
@@ -152,7 +159,7 @@ def process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_pa
     
     # Initialiseer alles als het de eerste frame is
     if not race_manager.initialized:
-        initialized_frame = initialize_frame(base_frame, cars)
+        initialized_frame = initialize_frame(base_frame, cars, race_manager)
         race_manager.initialized = True
         return initialized_frame
 
