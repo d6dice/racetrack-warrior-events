@@ -203,8 +203,8 @@ def display_car_info(cars, frame, current_time, race_manager):
         username = car.username if car.username is not None else car.color_key.capitalize()
 
         # Pas de BLACK_BAR_WIDTH toe op de X-coördinaten van de overlay
-        adjusted_lap_position = (car.lap_position[0] + BLACK_BAR_WIDTH, car.lap_position[1])
-        adjusted_complete_position = (car.lap_complete_position[0] + BLACK_BAR_WIDTH, car.lap_complete_position[1])
+        adjusted_lap_position = (car.lap_position[0], car.lap_position[1])
+        adjusted_complete_position = (car.lap_complete_position[0], car.lap_complete_position[1])
 
         # Debug-uitvoer voor aangepaste posities
         print(f"Car {car.marker_id}: oorspronkelijke lap_position = {car.lap_position}, aangepaste lap_position = {adjusted_lap_position}")

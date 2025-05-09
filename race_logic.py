@@ -150,6 +150,7 @@ def initialize_frame(frame, cars, race_manager):
 def process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_path):
     """
     Verwerkt een frame voor de race en bouwt een definitieve composiet op:
+    - Detecteert ArUco-markers en verwerkt deze.
     - Achtergrondlaag: het originele camerabeeld wordt gespiegeld.
     - Overlaylaag: alle overlays (traject, finish-zone, auto-informatie, indicatoren, "GO!"-tekst).
     """
@@ -162,32 +163,76 @@ def process_frame(frame, race_manager, cars, parameters, aruco_dict, expanded_pa
         initialized_frame = initialize_frame(base_frame, cars, race_manager)
         race_manager.initialized = True
         return initialized_frame
+    
+    # ArUco-detectie op het originele, ongespiegelde beeld
+    print("DEBUG: Start ArUco-detectie in process_frame.")
+    gray = cv2.cvtColor(base_frame, cv2.COLOR_BGR2GRAY)
+    corners, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+    if ids is not None and len(ids) > 0:
+        print(f"DEBUG: Gedetecteerde ArUco-ID's: {ids.flatten()}")
+        process_markers(cars, corners, ids, base_frame, race_manager)
+    else:
+        print("⚠️ DEBUG: Geen ArUco-markers gedetecteerd.")
 
     # Maak de compositie: extra ruimte voor de zwarte balken en ranking bar
     ranking_bar_height = RANKING_BAR_CONFIG['ranking_bar_height']
     composite_width = frame_width + 2 * BLACK_BAR_WIDTH
     composite_height = frame_height + ranking_bar_height
     new_frame = np.zeros((composite_height, composite_width, 3), dtype=np.uint8)
+    
+    # Definieer de cameraregion in het nieuwe canvas
     cam_region = (slice(0, frame_height), slice(BLACK_BAR_WIDTH, BLACK_BAR_WIDTH + frame_width))
     new_frame[cam_region] = base_frame  # Plaats het originele beeld eerst
 
-    # Teken de vaste overlays
-    draw_race_track(new_frame, expand_path(PATH_POINTS, PATH_WIDTH))
-    draw_finish_zone(new_frame)
-    draw_checkpoint_zone(new_frame)
-
-    # Update auto-posities en teken auto-informatie
-    current_time = time.time()  # Huidige tijd
-    display_car_info(cars, new_frame, current_time, race_manager)
+    # Initialiseer alles als het de eerste frame is
+    if not race_manager.initialized:
+        initialized_frame = initialize_frame(base_frame, cars, race_manager)
+        race_manager.initialized = True
+        return initialized_frame
 
     # Teken countdown of "GO!" als de race nog niet is gestart
     if not race_manager.race_started:
         handle_countdown(new_frame, race_manager, cars)
         return new_frame
 
-    # Dynamische overlays bijwerken
+    # Teken de vaste overlays
+    draw_race_track(new_frame, expand_path(PATH_POINTS, PATH_WIDTH))
+    draw_finish_zone(new_frame)
+    draw_checkpoint_zone(new_frame)
+
+    # Update auto-posities relatief aan de composiet
+    update_car_positions(cars, composite_width, composite_height)
+    
+    # Teken auto-informatie
+    current_time = time.time()  # Huidige tijd
+    display_car_info(cars, new_frame, current_time, race_manager)    
+
+    # Bereken voor iedere auto de display-coördinaten
+    for car in cars.values():
+        if car.x is not None and car.y is not None:
+            car.display_x = car.x
+            car.display_y = car.y
+        else:
+            print(f"⚠️ Warning: Car {car.marker_id} heeft geen geldige positie (x={car.x}, y={car.y}); overlay overslaan.")
+    
+    # Teken als laatste alle overlays, inclusief de auto-afbeeldingen en indicatoren
     new_frame = update_and_draw_overlays(new_frame, cars, race_manager)
 
+    # Indien de race net gestart is, teken "GO!" in de cameraregion
+    if race_manager.race_started and (time.time() - race_manager.race_start_time < 1):
+        pos = (BLACK_BAR_WIDTH + frame_width // 2 - GO_TEXT_OFFSET_X,
+               frame_height // 2 + GO_TEXT_OFFSET_Y)
+        draw_text(new_frame, GO_TEXT, pos, GO_TEXT_COLOR, GO_TEXT_FONT_SCALE, GO_TEXT_THICKNESS)
+
+    # Controleer of alle auto's gefinished zijn
+    if cars and all(car.finished for car in cars.values()):
+        final_finish_time = max(car.finish_time for car in cars.values() if car.finish_time is not None)
+        if time.time() - final_finish_time >= FINAL_OVERLAY_DELAY:
+            sorted_cars = sort_cars_by_position(cars)
+            new_frame = draw_final_ranking_overlay(new_frame, sorted_cars)
+        else:
+            print(f"DEBUG: Final overlay delay nog aan de gang, nog {FINAL_OVERLAY_DELAY - (time.time() - final_finish_time):.1f} sec te gaan.")
+        
     return new_frame
 
 def handle_countdown(frame, race_manager, cars):
