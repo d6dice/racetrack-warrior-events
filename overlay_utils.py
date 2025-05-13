@@ -253,7 +253,7 @@ def display_car_info(cars, frame, current_time, race_manager):
 
             # Toon de huidige ronde
             if car.finished:
-                draw_text(frame, "Finished", adjusted_lap_position, color, FONT_SCALE_SIDEBAR, THICKNESS)
+                lap_str = "Finished"  # Pas dit aan om "Lap X" te vermijden bij gefinishte auto's
             else:
                 lap_str = f"Lap {car.lap_count + 1}"
 

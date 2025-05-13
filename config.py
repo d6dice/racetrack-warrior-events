@@ -165,8 +165,8 @@ POSITION_INDICATOR_CONFIG = {
 # ---------------------------------------------------------------------------
 # Startscherm en Countdown Instellingen
 # ---------------------------------------------------------------------------
-START_TEXT = "Ready?"
-START_TEXT_POSITION = (100, 300)
+START_TEXT = "Ready ?"
+START_TEXT_POSITION = (250, 300)
 START_TEXT_FONT_SCALE = 5
 START_TEXT_COLOR = (255, 255, 255)
 START_TEXT_THICKNESS = 15
