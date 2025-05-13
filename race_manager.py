@@ -17,16 +17,15 @@ class RaceManager:
     """
     
     def __init__(self, countdown_duration=3, cooldown_time=2):
-        """
-        Initialiseert de RaceManager met de gegeven countdown- en cooldown-durations.
-        De race wordt standaard niet gestart.
-        """
+        # Initialiseer race-gerelateerde attributen
         self.countdown_duration = countdown_duration
         self.cooldown_time = cooldown_time
         self.race_started = False
         self.countdown_start_time = None
         self.race_start_time = None
-        self.finished_order = []  # Nieuw: opslaan in welke volgorde auto's finishen
+        self.cars = []  # Lijst met deelnemende auto's
+        self.finished_order = []  # Opslaan in welke volgorde auto's finishen
+        print("RaceManager is geïnitialiseerd!")  # Debug
 
     def start_countdown(self):
         """
@@ -60,23 +59,30 @@ class RaceManager:
         else:
             return 0
 
-    def start_race(self):
+    def start_race(self, participating_cars):
         """
-        Start de race:
-          - Zet 'race_started' op True.
-          - Leg het tijdstip van de start vast in 'race_start_time'.
-          - Reset de countdown (countdown_start_time wordt op None gezet).
+        Start de race en initialiseert de deelnemende auto's.
         """
+        print("Start Race wordt aangeroepen!")  # Debug
+        self.cars = participating_cars  # Voeg de deelnemende auto's toe
         self.race_started = True
         self.race_start_time = time.time()
         self.countdown_start_time = None
+        print(f"Race gestart met {len(self.cars)} auto's!")  # Debug
 
-    def reset_race(self):
+    def reset(self):
         """
-        Reset alle race-gerelateerde attributen zodat een nieuwe race kan beginnen.
-        Hierdoor worden de waarden voor race_start_time en countdown_start_time leeggemaakt,
-        en wordt race_started terug op False gezet.
+        Reset de race volledig.
         """
+        print("RaceManager reset wordt aangeroepen!")  # Debug
         self.race_started = False
         self.countdown_start_time = None
         self.race_start_time = None
+        self.finished_order = []
+        self.cars = []  # Reset de lijst met auto's
+
+        # Reset alle auto's
+        for car in self.cars:
+            car.reset()
+        print("Alle auto's zijn gereset!")  # Debug
+        print("RaceManager is volledig gereset!")  # Debug

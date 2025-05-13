@@ -1,10 +1,14 @@
 import tkinter as tk
 from tkinter import ttk
+from race_manager import RaceManager 
 
 class RaceMenu:
     def __init__(self, root):
         self.root = root
         self.root.title("Race Menu")
+        
+        # RaceManager-instantie aanmaken
+        self.race_manager = RaceManager()          
         
         # Auto-instellingen
         self.auto_frame = tk.LabelFrame(root, text="Auto-instellingen")
@@ -45,21 +49,35 @@ class RaceMenu:
         self.edit_times_button.pack(padx=5, pady=5)
     
     def start_race(self):
+        """
+        Start een nieuwe race met de geselecteerde auto's.
+        """
+        print("Start Race functie aangeroepen!")  # Debug
         participating_cars = []
         for color, username in self.auto_data.items():
-            if username.get().strip():  # Check if a username is provided
+            if username.get().strip():  # Check of er een gebruikersnaam is ingevuld
                 participating_cars.append({"color": color, "username": username.get()})
-        
+                print(f"DEBUG: Auto kleur: {color}, Gebruiker: {username.get()}")  # Debug
+
         if participating_cars:
-            print("Deelnemende auto's:", participating_cars)
-            print("Race gestart!")
+            print("Deelnemende auto's:", participating_cars)  # Debug
+            self.race_manager.start_race(participating_cars)
+            print("Race gestart!")  # Debug
         else:
-            print("Geen auto's geselecteerd. Vul gebruikersnamen in om te starten.")
+            print("Geen auto's geselecteerd. Vul gebruikersnamen in om te starten.")  # Debug
+
     
     def reset_race(self):
-        # Hier komt de logica om de race te resetten
-        print("Race gereset!")
-    
+        """
+        Roep de reset-functionaliteit aan van de RaceManager en reset de GUI-velden.
+        """
+        print("Gebruiker heeft 'Reset' geklikt. Race wordt gereset.")  # Debug
+        self.race_manager.reset()  # Roep de reset-methode van RaceManager aan
+        for color, var in self.auto_data.items():
+            var.set("")  # Reset de gebruikersnamen in de GUI
+        self.root.update_idletasks()  # GUI verversen
+        print("Race gereset!")        
+
     def edit_times(self):
         # Hier komt de logica om snelste tijden handmatig aan te passen
         print("Snelste tijden aanpassen...")
