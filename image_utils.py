@@ -139,3 +139,28 @@ def overlay_image(background, overlay, center_x, center_y, scale_factor):
         roi[:] = overlay_part
 
     return background
+
+def display_camera_feed(cap, stop_event, base_overlay=None):
+    """
+    Toon de live camera feed met een basisoverlay (racetrack en GUI-elementen die altijd zichtbaar zijn).
+    """
+    while not stop_event.is_set():
+        ret, frame = cap.read()
+        if not ret:
+            print("❌ Geen frame beschikbaar van de camera.")
+            break
+
+        # Voeg de basisoverlay toe (racetrack, zijbalken, onderbalken)
+        if base_overlay is not None:
+            frame = cv2.addWeighted(frame, 0.8, base_overlay, 0.2, 0)
+        
+        # Toon het frame
+        cv2.imshow("Race Track", frame)
+
+        # Controleer op sluiting
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            stop_event.set()
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()

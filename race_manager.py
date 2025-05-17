@@ -59,10 +59,12 @@ class RaceManager:
         else:
             return 0
 
-    def start_race(self, participating_cars):
+    def start_race(self, participating_cars=None):
         """
         Start de race en initialiseert de deelnemende auto's.
         """
+        if participating_cars is None:
+            participating_cars = []  # Standaard naar een lege lijst
         print("Start Race wordt aangeroepen!")  # Debug
         self.cars = participating_cars  # Voeg de deelnemende auto's toe
         self.race_started = True
