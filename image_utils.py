@@ -1,6 +1,7 @@
 # image_utils.py
 import cv2
 import numpy as np
+from config import BLACK_BAR_WIDTH, RANKING_BAR_CONFIG
 
 def load_image(path, width=None, height=None):
     """
@@ -140,9 +141,9 @@ def overlay_image(background, overlay, center_x, center_y, scale_factor):
 
     return background
 
-def display_camera_feed(cap, stop_event, base_overlay=None):
+def display_camera_feed(cap, stop_event, base_overlay, shared_frame, frame_lock):
     """
-    Toon de live camera feed met een basisoverlay (racetrack en GUI-elementen die altijd zichtbaar zijn).
+    Toon de live camera feed en werk de frames bij via een gedeelde buffer.
     """
     while not stop_event.is_set():
         ret, frame = cap.read()
@@ -150,14 +151,26 @@ def display_camera_feed(cap, stop_event, base_overlay=None):
             print("❌ Geen frame beschikbaar van de camera.")
             break
 
-        # Voeg de basisoverlay toe (racetrack, zijbalken, onderbalken)
-        if base_overlay is not None:
-            frame = cv2.addWeighted(frame, 0.8, base_overlay, 0.2, 0)
+        # Zorg ervoor dat de afmetingen van frame overeenkomen met de camera-regio
+        expected_width = base_overlay.shape[1] - 2 * BLACK_BAR_WIDTH
+        expected_height = base_overlay.shape[0] - RANKING_BAR_CONFIG['ranking_bar_height']
         
-        # Toon het frame
-        cv2.imshow("Race Track", frame)
+        if frame.shape[1] != expected_width or frame.shape[0] != expected_height:
+            frame = cv2.resize(frame, (expected_width, expected_height))
 
-        # Controleer op sluiting
+        with frame_lock:
+            if shared_frame[0] is not None:
+                frame = shared_frame[0]
+
+        # Voeg de basisoverlay toe
+        composite_frame = base_overlay.copy()
+        cam_region = (slice(0, frame.shape[0]), slice(BLACK_BAR_WIDTH, BLACK_BAR_WIDTH + frame.shape[1]))
+        composite_frame[cam_region] = frame
+
+        # Toon het gecombineerde frame
+        cv2.imshow("Race Track", composite_frame)
+
+        # Controleer op afsluiten
         if cv2.waitKey(1) & 0xFF == ord('q'):
             stop_event.set()
             break
