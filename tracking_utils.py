@@ -127,4 +127,3 @@ def process_detected_markers(new_frame, cars, parameters, aruco_dict, race_manag
     
     if ids is not None and len(ids) > 0:
         process_markers(cars, corners, ids, new_frame, race_manager)
-

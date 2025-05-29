@@ -389,14 +389,17 @@ def process_frame_loop(cars, race_manager, cap, parameters, aruco_dict, expanded
     cap.release()
     cv2.destroyAllWindows()
     
-def run_race(cars, race_manager, cap):
+def run_race(cars, race_manager, cap, stop_event, shared_frame, frame_lock):
     """
-    Coördineert de race door camera-frames te verwerken en op het scherm weer te geven.
+    Coördineert de race door camera-frames te verwerken en de gedeelde framebuffer bij te werken.
 
     Parameters:
     - cars: Dictionary met auto-objecten.
     - race_manager: Het RaceManager-object dat de race beheert.
     - cap: OpenCV VideoCapture-object voor toegang tot de camera.
+    - stop_event: threading.Event-object om de race netjes te stoppen.
+    - shared_frame: Gedeelde lijst voor het bijhouden van het huidige frame.
+    - frame_lock: threading.Lock-object voor thread-safe toegang tot shared_frame.
     """
     try:
         print("run_race is gestart!")  # Debug-uitvoer
@@ -411,7 +414,7 @@ def run_race(cars, race_manager, cap):
 
         # Start de race-loop
         race_manager.initialized = False  # Nieuw attribuut om te controleren of alles is voorbereid
-        while True:
+        while not stop_event.is_set():  # Controleer het stop_event
             # Lees een frame van de camera
             ret, frame = cap.read()
             if not ret or frame is None:
@@ -427,16 +430,11 @@ def run_race(cars, race_manager, cap):
                 print(f"❌ Fout bij verwerken frame: {e}")
                 continue
 
-            # Toon het verwerkte frame (enkel hier!)
-            cv2.imshow("Race Track Warrior", processed_frame)
+            # Update de gedeelde framebuffer met het verwerkte frame
+            with frame_lock:
+                shared_frame[0] = processed_frame
 
-            # Controleer of de gebruiker het venster wil sluiten
-            key = cv2.waitKey(1) & 0xFF
-            if key == 27 or cv2.getWindowProperty("Race Track Warrior", cv2.WND_PROP_VISIBLE) < 1:
-                print("Programma wordt afgesloten...")
-                break
-
-        # Zorg ervoor dat de camera netjes wordt vrijgegeven en vensters worden gesloten
+        # Zorg ervoor dat de camera netjes wordt vrijgegeven
         cap.release()
         cv2.destroyAllWindows()
 
