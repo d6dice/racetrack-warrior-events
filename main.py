@@ -27,6 +27,8 @@ def handle_close(sig, frame):
 signal.signal(signal.SIGINT, handle_close)
 signal.signal(signal.SIGTERM, handle_close)
 
+print ("hello")
+
 def main():
     print("main() is gestart!")  # Debug-uitvoer
 
