@@ -141,40 +141,63 @@ def overlay_image(background, overlay, center_x, center_y, scale_factor):
 
     return background
 
-def display_camera_feed(cap, stop_event, base_overlay, shared_frame, frame_lock):
+def display_camera_feed(cam, converter, stop_event, base_overlay, shared_frame, frame_lock):
     """
-    Toon de live camera feed en werk de frames bij via een gedeelde buffer.
+    Toon live camerabeeld van Basler of OpenCV-camera in een apart venster.
+    - cam: Basler-camera object OF cv2.VideoCapture object
+    - converter: pypylon.ImageFormatConverter voor Basler, anders None
+    - stop_event: threading.Event om te stoppen
+    - base_overlay: overlay image (optioneel)
+    - shared_frame: lijstje waar laatste frame in wordt opgeslagen (voor andere threads)
+    - frame_lock: threading.Lock voor toegang tot shared_frame
     """
+    # Probeer te detecteren of het een Basler-camera of een cv2.VideoCapture is
+    is_basler = False
+    try:
+        # Basler: heeft een 'RetrieveResult' methode
+        is_basler = hasattr(cam, "RetrieveResult")
+    except Exception:
+        is_basler = False
+
+    window_name = "Camera Feed"
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
     while not stop_event.is_set():
-        ret, frame = cap.read()
-        if not ret:
-            print("❌ Geen frame beschikbaar van de camera.")
-            break
+        if is_basler:
+            # Basler camera
+            grabResult = cam.RetrieveResult(5000, 0)
+            if grabResult.GrabSucceeded():
+                image = converter.Convert(grabResult)
+                frame = image.GetArray()
+                grabResult.Release()
+            else:
+                grabResult.Release()
+                print("Kon geen frame ophalen van Basler-camera.")
+                continue
+        else:
+            # OpenCV camera
+            ret, frame = cam.read()
+            if not ret or frame is None:
+                print("Kon geen frame ophalen van webcam.")
+                continue
 
-        # Bepaal de cam_region afmetingen
-        expected_width = base_overlay.shape[1] - 2 * BLACK_BAR_WIDTH
-        expected_height = base_overlay.shape[0] - RANKING_BAR_CONFIG['ranking_bar_height']
+        # Overlay eventueel baseren op base_overlay
+        if base_overlay is not None:
+            try:
+                # Overlay moet zelfde afmetingen hebben als frame
+                overlay_resized = cv2.resize(base_overlay, (frame.shape[1], frame.shape[0]))
+                alpha = 0.3  # transparantie
+                frame = cv2.addWeighted(frame, 1 - alpha, overlay_resized, alpha, 0)
+            except Exception:
+                pass  # overlay niet verplicht
 
-        # Haal eventueel een aangepast frame uit shared_frame
+        # Deel het frame met andere threads/processen als ze dat willen
         with frame_lock:
-            if shared_frame[0] is not None:
-                frame = shared_frame[0]
+            shared_frame[0] = frame.copy()
 
-        # Schaal het frame altijd naar de juiste camera-regio
-        frame = cv2.resize(frame, (expected_width, expected_height))
-
-        # Voeg de basisoverlay toe
-        composite_frame = base_overlay.copy()
-        cam_region = (slice(0, expected_height), slice(BLACK_BAR_WIDTH, BLACK_BAR_WIDTH + expected_width))
-        composite_frame[cam_region] = frame
-
-        # Toon het gecombineerde frame
-        cv2.imshow("Race Track", composite_frame)
-
-        # Controleer op afsluiten
+        cv2.imshow(window_name, frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             stop_event.set()
             break
 
-    cap.release()
-    cv2.destroyAllWindows()
+    cv2.destroyWindow(window_name)

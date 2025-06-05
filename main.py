@@ -162,9 +162,7 @@ def main():
         # Je kunt hier desgewenst opnieuw de overlay en de camera-thread starten als je dat wilt,
         # of gewoon wachten tot de gebruiker weer op start drukt.
 
-    # Koppel deze functies aan je menu/knoppen
-    race_menu.set_start_callback(start_race)
-    race_menu.set_reset_callback(reset_race)
+
 
     root.mainloop()
 
