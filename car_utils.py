@@ -66,3 +66,4 @@ def update_car_usernames(usernames):
     for car_key, username in usernames.items():
         if car_key in CAR_CONFIG:
             CAR_CONFIG[car_key]["username"] = username
+            

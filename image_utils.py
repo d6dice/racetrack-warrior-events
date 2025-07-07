@@ -1,6 +1,7 @@
 # image_utils.py
 import cv2
 import numpy as np
+from config import BLACK_BAR_WIDTH, RANKING_BAR_CONFIG
 
 def load_image(path, width=None, height=None):
     """
@@ -139,3 +140,41 @@ def overlay_image(background, overlay, center_x, center_y, scale_factor):
         roi[:] = overlay_part
 
     return background
+
+def display_camera_feed(cap, stop_event, base_overlay, shared_frame, frame_lock):
+    """
+    Toon de live camera feed en werk de frames bij via een gedeelde buffer.
+    """
+    while not stop_event.is_set():
+        ret, frame = cap.read()
+        if not ret:
+            print("❌ Geen frame beschikbaar van de camera.")
+            break
+
+        # Bepaal de cam_region afmetingen
+        expected_width = base_overlay.shape[1] - 2 * BLACK_BAR_WIDTH
+        expected_height = base_overlay.shape[0] - RANKING_BAR_CONFIG['ranking_bar_height']
+
+        # Haal eventueel een aangepast frame uit shared_frame
+        with frame_lock:
+            if shared_frame[0] is not None:
+                frame = shared_frame[0]
+
+        # Schaal het frame altijd naar de juiste camera-regio
+        frame = cv2.resize(frame, (expected_width, expected_height))
+
+        # Voeg de basisoverlay toe
+        composite_frame = base_overlay.copy()
+        cam_region = (slice(0, expected_height), slice(BLACK_BAR_WIDTH, BLACK_BAR_WIDTH + expected_width))
+        composite_frame[cam_region] = frame
+
+        # Toon het gecombineerde frame
+        cv2.imshow("Race Track", composite_frame)
+
+        # Controleer op afsluiten
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            stop_event.set()
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
