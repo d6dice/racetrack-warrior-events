@@ -13,7 +13,7 @@ from path_utils import expand_path
 from race_logic import process_frame, run_race
 from race_menu import RaceMenu
 
-
+# master branch goed werkende code
 def handle_close(sig, frame):
     """
     Zorgt voor een nette afsluiting van het programma.
